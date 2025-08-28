@@ -1,0 +1,20 @@
+dataset_name: "10025"
+
+splits: 38
+reverse: true
+old_size: 448
+new_size: 300
+max_splits: 38
+bg_radius: 112
+symmetry: "D7"
+cs: 2.7
+kv: 300
+q0: 0.1
+angpix: 0.985600
+dose_per_frame: 1.3947
+pre_exposure: 0
+
+original_reconstruction_path: "${datamodule.dataset_path}/EMD-6287.map"
+
+defaults:
+  - base

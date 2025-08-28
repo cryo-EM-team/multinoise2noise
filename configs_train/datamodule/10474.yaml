@@ -1,0 +1,20 @@
+dataset_name: "10474"
+
+splits: 30
+reverse: true
+old_size: 512
+new_size: 384
+bg_radius: 100
+max_splits: 30
+symmetry: "O"
+cs: 2.7
+kv: 300
+q0: 0.1
+angpix: 0.706667
+dose_per_frame: 1.36
+pre_exposure: 0
+
+original_reconstruction_path: "${datamodule.dataset_path}/emd_22351.map"
+
+defaults:
+  - base

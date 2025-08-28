@@ -1,0 +1,11 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10474"
+  - override /trainer: cpu
+
+core:
+  group: extraction
+
+tags: ['motion_correction', 'relion', '10474', 'real']
+
+task: motion_correction_10474

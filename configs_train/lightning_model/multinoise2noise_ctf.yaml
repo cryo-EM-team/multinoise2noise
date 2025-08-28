@@ -1,0 +1,53 @@
+_target_: source._noise2noise.multinoise2noise_ctf.MultiNoise2NoiseCTFLightningModel
+
+model: ${model}
+
+mean: ${datamodule.mean}
+std: ${datamodule.std}
+
+eval_half: ${datamodule.train_half}
+
+reconstruction_mode: 'denoised_mean'
+original_reconstruction_path: ${datamodule.original_reconstruction_path}
+
+logging:
+  sample_epochs: 5 # images to sample for validation epoch
+  reconstruction_wait: 5 # how many epoch to wait before starting performing reconstructions
+  reconstruction_step: 5
+  
+optimizer:
+    _target_: torch.optim.AdamW
+    lr: 1e-4
+    betas: [0.9, 0.999]
+    eps: 1e-08
+    weight_decay: 0.02
+
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  patience: 7
+  threshold: 1e-05
+  factor: 0.5
+
+criterion:
+  _target_: source.loss_functions.ctf_l2.CTF_MSELoss
+  n: 1
+  correct_frequencies: True
+
+metrics:
+  _target_: torchmetrics.MetricCollection
+  metrics:
+    - _target_: torchmetrics.regression.MeanSquaredError
+    - _target_: torchmetrics.image.PeakSignalNoiseRatio
+      data_range: ${as_tuple:"${datamodule.min}","${datamodule.max}"}
+    - _target_: source.loss_functions.frc.FourierRingCorrelation
+      size: ${datamodule.new_size}
+
+defaults:
+    - reconstructor: default
+
+ctf_premultiply: False
+
+monitor: "val/loss"
+
+# compile model for faster training with pytorch 2.0
+compile: false

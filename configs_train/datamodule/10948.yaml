@@ -1,0 +1,20 @@
+dataset_name: "10948"
+
+splits: 40
+reverse: true
+old_size: 360
+new_size: 360
+max_splits: 40
+bg_radius: 70
+symmetry: "D7"
+cs: 2.7
+kv: 300
+q0: 0.1
+angpix: 0.813
+dose_per_frame: 1.0
+pre_exposure: 0
+
+original_reconstruction_path: "${datamodule.dataset_path}/emd_31310.mrc"
+
+defaults:
+  - base

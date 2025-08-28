@@ -1,0 +1,22 @@
+_target_: source._motion_correction.motion_corrector.MotionCorrector
+
+pixel_size: ${datamodule.pixel_size}
+n_frames: ${datamodule.n_frames}
+
+# Configurable parameters
+max_iter: 10
+b_factor: 150
+prescaling: 1
+patch_x: 5
+patch_y: 5
+center_by_interpolation: True
+apply_dose_weighting: True
+
+dose_weighter:
+  _target_: source.reconstruction.dose_weighter.DoseWeighter
+  n_frames: ${datamodule.n_frames}
+  dose_per_frame: ${datamodule.dose_per_frame}
+  pre_exposure: ${datamodule.pre_exposure}
+  voltage: ${datamodule.voltage}
+  pixel_size: ${datamodule.pixel_size}
+  size: ${datamodule.size}

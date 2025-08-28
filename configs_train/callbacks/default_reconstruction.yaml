@@ -1,0 +1,25 @@
+defaults:
+  - model_checkpoint
+  - model_summary
+  - rich_progress_bar
+  - early_stopping
+  - lr_monitor
+  - _self_
+
+early_stopping:
+  monitor: "val/loss" # quantity to be monitored, must be specified !!!
+  patience: 15 # number of checks with no improvement after which training will be stopped
+  verbose: True # verbosity mode
+  mode: "min"
+  strict: False
+
+model_checkpoint:
+  dirpath: ${paths.output_dir}/checkpoints
+  filename: "epoch_{epoch:03d}"
+  monitor: "val/loss"
+  mode: "min"
+  save_last: True
+  auto_insert_metric_name: False
+
+model_summary:
+  max_depth: -1

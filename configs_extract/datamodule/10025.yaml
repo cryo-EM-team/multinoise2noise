@@ -1,0 +1,30 @@
+_target_: source.datasets.extraction_datamodule.ExtractionDatamodule
+_recursive_: False
+
+batch_size: 8
+num_workers: 8
+
+dataset_name: "10025"
+dataset_path: "${paths.data_dir}/${datamodule.dataset_name}"
+particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_extract.star"
+out_dir:  "${datamodule.dataset_path}/extraction/"
+
+new_size: 300
+old_size: 448
+bg_radius: 112
+invert_contrast: True
+file_mode: 'h5'
+num_frames: 38
+
+#CTF params
+cs: 2.7
+kv: 300
+q0: 0.1
+angpix: 0.985600
+dose_per_frame: 1.3947
+pre_exposure: 0
+voltage: 300
+
+dataset:
+  _target_: source.datasets.extraction_dataset.ExtractionDataset
+  box: ${datamodule.old_size}

@@ -1,0 +1,76 @@
+_target_: source.datasets.multinoise2noise_datamodule.MultiNoise2NoiseDatamodule
+_recursive_: False
+
+dataset_name: ???
+dataset_path: "${paths.data_dir}/${datamodule.dataset_name}"
+particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}.star"
+
+# required to crete a splits
+recalculate_splits: False
+train_perc: 1.0
+
+# technical
+batch_size: 10
+num_workers: 16
+train_half: 1
+
+# stats
+average_strategy: "mean"
+splits: ???
+reverse: true
+mean: 0
+std: 1
+min: 0
+max: 1
+old_size: ???
+new_size: ???
+max_splits: ???
+bg_radius: ???
+invert_contrast: True
+symmetry: ???
+cs: ???
+kv: ???
+q0: ???
+angpix: ???
+dose_per_frame: ???
+pre_exposure: 0
+create_projections: False
+original_reconstruction_path: ???
+
+# datasets
+datasets:
+  train:
+    _target_: source.datasets.multinoise2noise_dataset.MultiNoise2NoiseDataset
+    do_fom_weighting: False
+    training: True
+    average_strategy: ${datamodule.average_strategy}
+    splits: ${datamodule.splits}
+    reverse: ${datamodule.splits}
+    h5_path: "${datamodule.dataset_path}/${datamodule.dataset_name}.h5"
+    transform:
+      _target_: torchvision.transforms.v2.Compose
+      transforms:
+        - _target_: torchvision.transforms.v2.ToImage
+        - _target_: torchvision.transforms.v2.Normalize
+          mean: [ "${datamodule.mean}" ]
+          std: [ "${datamodule.std}" ]
+        - _target_: torchvision.transforms.v2.RandomHorizontalFlip
+        - _target_: torchvision.transforms.v2.RandomVerticalFlip
+        - _target_: torchvision.transforms.v2.Lambda
+          lambd:
+            _target_: source.datasets.transforms.Rotation90
+
+  val:
+    _target_: source.datasets.multinoise2noise_dataset.MultiNoise2NoiseDataset
+    do_fom_weighting: False
+    average_strategy: ${datamodule.average_strategy}
+    splits: ${datamodule.splits}
+    reverse: ${datamodule.splits}
+    h5_path: "${datamodule.dataset_path}/${datamodule.dataset_name}.h5"
+    transform:
+      _target_: torchvision.transforms.v2.Compose
+      transforms:
+        - _target_: torchvision.transforms.v2.ToImage
+        - _target_: torchvision.transforms.v2.Normalize
+          mean: [ "${datamodule.mean}" ]
+          std: [ "${datamodule.std}" ]

@@ -1,0 +1,29 @@
+_target_: source._extraction.extraction_module.ExtractionModule
+
+file_mode: ${datamodule.file_mode}
+
+extractor:
+  _target_: source.reconstruction.extractor.Extractor
+  new_size: ${datamodule.new_size}
+  bg_radius: ${datamodule.bg_radius}
+  invert_contrast: ${datamodule.invert_contrast}
+  ctf_mode: "normal"
+  dw_mode: False
+  ctf:
+    _target_: source.reconstruction.ctf.CTF
+    cs: ${datamodule.cs}
+    kv: ${datamodule.kv}
+    q0: ${datamodule.q0}
+    angpix: ${datamodule.angpix}
+    size: ${datamodule.new_size}
+
+  dose_weighter:
+    _target_: source.reconstruction.dose_weighter.DoseWeighter
+    n_frames: ${datamodule.num_frames}
+    dose_per_frame: ${datamodule.dose_per_frame}
+    pre_exposure: ${datamodule.pre_exposure}
+    voltage: ${datamodule.voltage}
+    pixel_size: ${datamodule.angpix}
+    size:
+      - ${datamodule.new_size}
+      - ${datamodule.new_size}

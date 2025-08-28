@@ -1,0 +1,42 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10025"
+  - override /lightning_model: multinoise2noise
+  - override /model: unet
+  - override /trainer: gpu
+  - override /callbacks: default_reconstruction
+  - override /logger: wandb
+  
+
+core:
+  group: noise2noise
+
+trainer:
+  min_epochs: 20
+  max_epochs: 500
+
+datamodule:
+  splits: 38
+  batch_size: 2
+  num_workers: 16
+  particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
+  original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
+
+lightning_model:
+  criterion:
+    _target_: source.loss_functions.dw_l2.DW_MSELoss
+    correct_frequencies: True
+    dose_weighter:
+      _target_: source.reconstruction.dose_weighter.DoseWeighter
+      n_frames: ${datamodule.max_splits}
+      dose_per_frame: ${datamodule.dose_per_frame}
+      pre_exposure: ${datamodule.pre_exposure}
+      voltage: ${datamodule.kv}
+      pixel_size: ${datamodule.angpix}
+      size:
+        - ${datamodule.new_size}
+        - ${datamodule.new_size}
+
+tags: ['noise2noise', 'unet', '10025', 'real']
+
+task_name: "multi_noise2noise_dw"

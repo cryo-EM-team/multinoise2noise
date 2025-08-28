@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10948"
+  - override /trainer: cpu
+
+core:
+  group: extraction
+
+lightning_model:
+  extractor:
+    ctf_mode: "sign"
+
+tags: ['extraction', 'relion', '10948', 'real']
+
+task: extraction_10948

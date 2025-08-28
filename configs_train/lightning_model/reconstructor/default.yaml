@@ -1,0 +1,44 @@
+_target_: source.reconstruction.reconstructor.Reconstructor
+output_dir: "${paths.storage_dir}/reconstruction/${datamodule.dataset_name}/${task_name}/"
+divide_avg: True
+low_resol_join_halves: 999
+tau2_fudge: 1
+ctf_mode: "abs"
+autob_lowres: 10
+postprocess: False
+mask_path: "${datamodule.dataset_path}/mask.mrc"
+
+back_projector:
+  _target_: source.reconstruction.back_projector.BackProjector
+  ori_size: ${datamodule.new_size}
+  symmetry:
+    _target_: source.reconstruction.symmetry.Symmetry
+    symmetry: ${datamodule.symmetry}
+    symmetry_dir: "${paths.root_dir}/source/reconstruction/symmetry_files/"
+
+extractor:
+  _target_: source.reconstruction.extractor.Extractor
+  new_size: ${datamodule.new_size}
+  bg_radius: ${datamodule.bg_radius}
+  invert_contrast: ${datamodule.invert_contrast}
+  ctf_mode: "sign"
+  ctf:
+    _target_: source.reconstruction.ctf.CTF
+    cs: ${datamodule.cs}
+    kv: ${datamodule.kv}
+    q0: ${datamodule.q0}
+    angpix: ${datamodule.angpix}
+    size: ${datamodule.new_size}
+  dose_weighter:
+    _target_: source.reconstruction.dose_weighter.DoseWeighter
+    n_frames: ${datamodule.max_splits}
+    dose_per_frame: ${datamodule.dose_per_frame}
+    pre_exposure: ${datamodule.pre_exposure}
+    voltage: ${datamodule.kv}
+    pixel_size: ${datamodule.angpix}
+    size:
+      - ${datamodule.new_size}
+      - ${datamodule.new_size}
+
+fourier_transformer:
+  _target_: source.reconstruction.fourier_transformer.FourierTransformer

@@ -1,0 +1,20 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10025_sim"
+  - override /trainer: cpu
+
+core:
+  group: extraction
+
+lightning_model:
+  extractor:
+    ctf_mode: "sign"
+
+datamodule:
+  out_dir:  "${datamodule.dataset_path}/extraction/clean"
+  particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_clean_extract.star"
+  num_frames: 1
+
+tags: ['extraction', 'relion', '10025', 'simulated']
+
+task: extraction_10025_sim

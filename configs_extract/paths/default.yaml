@@ -1,0 +1,10 @@
+root_dir: ${oc.env:PROJECT_ROOT}
+
+# -----> CHANGE THAT 
+storage_dir: ${local.storage_dir}
+data_dir: ${paths.storage_dir}
+
+log_dir: ${paths.storage_dir}/${local.user_name}/logs/
+output_dir: ${hydra:runtime.output_dir}
+work_dir: ${hydra:runtime.cwd}
+# ------>

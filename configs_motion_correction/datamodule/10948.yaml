@@ -1,0 +1,23 @@
+_target_: source.datasets.motion_correction_datamodule.MotionCorrectionDatamodule
+_recursive_: False
+
+batch_size: 1
+num_workers: 0
+
+dataset_name: "10948"
+dataset_path: "${paths.data_dir}/${datamodule.dataset_name}"
+micrographs_star_path: "${datamodule.dataset_path}/Gain/movies_.star"
+out_dir:  "${paths.storage_dir}/motion_correction/${datamodule.dataset_name}/"
+prefix: "MotionCorr"
+
+pixel_size: 0.813
+n_frames: 40
+dose_per_frame: 1.0
+pre_exposure: 0
+voltage: 300
+do_all: False
+size: [4092, 5760]
+
+dataset:
+  _target_: source.datasets.motion_correction_dataset.MotionCorrectionDataset
+  gain_path: "${datamodule.dataset_path}/Gain/gain-reference.mrc"

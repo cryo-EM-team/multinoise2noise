@@ -1,0 +1,15 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10025_sim"
+  - override /trainer: cpu
+
+core:
+  group: extraction
+
+lightning_model:
+  extractor:
+    ctf_mode: "sign"
+
+tags: ['extraction', 'relion', '10025', 'simulated']
+
+task: extraction_10025_sim

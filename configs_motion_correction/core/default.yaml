@@ -1,0 +1,10 @@
+# this is "project metadata"
+
+project_name: cryoem-denoising-project
+group: 'random-group'
+version: 1.0
+
+run_name: ''
+
+# seed for easy reproducebility
+seed:  2137
