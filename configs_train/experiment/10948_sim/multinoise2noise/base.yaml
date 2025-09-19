@@ -1,0 +1,27 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10948_sim"
+  - override /lightning_model: multinoise2noise
+  - override /model: unet
+  - override /trainer: gpu
+  - override /callbacks: default_reconstruction
+  - override /logger: wandb
+  
+
+core:
+  group: noise2noise
+
+trainer:
+  min_epochs: 20
+  max_epochs: 500
+
+datamodule:
+  splits: 2
+  batch_size: 8
+  num_workers: 16
+  particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
+  original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
+
+tags: ['noise2noise', 'unet', '10948', 'simulated']
+
+task_name: "noise2noise"

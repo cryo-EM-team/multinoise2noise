@@ -11,8 +11,11 @@ def visualize_slices(tensor: torch.Tensor) -> Figure:
     """
     Visualize slices of a 3D PyTorch tensor along each axis.
 
-    Parameters:
+    Args:
         tensor (torch.Tensor): A 3D PyTorch tensor representing the density map.
+
+    Returns:
+        Figure: Matplotlib figure with three slice views.
     """
     if tensor.ndim != 3:
         raise ValueError("Input tensor must be 3-dimensional.")
@@ -40,10 +43,13 @@ def visualize_slices(tensor: torch.Tensor) -> Figure:
 
 def visualize_projections(tensor: torch.Tensor) -> Figure:
     """
-    Visualize slices of a 3D PyTorch tensor along each axis.
+    Visualize projections (summed views) of a 3D PyTorch tensor along each axis.
 
-    Parameters:
+    Args:
         tensor (torch.Tensor): A 3D PyTorch tensor representing the density map.
+
+    Returns:
+        Figure: Matplotlib figure with three projection views.
     """
     if tensor.ndim != 3:
         raise ValueError("Input tensor must be 3-dimensional.")
@@ -70,11 +76,17 @@ def visualize_projections(tensor: torch.Tensor) -> Figure:
     return fig
 
 def visualize_fsc(fsc: dict[str, torch.Tensor], resolution: str, angpix: float, show_line: bool = True) -> Figure:
-    """Logs denoised samples as matplotlib figure. 
+    """
+    Visualize Fourier Shell Correlation (FSC) curves.
 
     Args:
-        outputs (Dict[str, torch.Tensor]): Outputs from an epoch (training, validation, test).
-        phase: (str): Phase (training, validation, test).
+        fsc (dict[str, torch.Tensor]): Dictionary of FSC curves.
+        resolution (str): Resolution value to display in the title.
+        angpix (float): Pixel size in Angstroms.
+        show_line (bool, optional): Whether to show the 0.143 threshold line. Defaults to True.
+
+    Returns:
+        Figure: Matplotlib figure with FSC curves.
     """
     fig, ax = plt.subplots(1, 1, figsize=(7,7))
     data_range = None
@@ -119,13 +131,17 @@ def plot_with_weighted_dashes(x: torch.Tensor,
     Plot a line with parts styled as solid or dashed based on binary weights.
 
     Args:
-        x (list or np.ndarray): X-coordinates of the line.
-        y (list or np.ndarray): Y-coordinates of the line.
-        weights (list or np.ndarray): Binary weights (0 or 1) for each segment of the line.
-        ax (Axes): axis on which to plot data.
-        label (str): Label of the line.
-        true_style (str): Line style for weighted (1) segments (default is solid '-').
-        false_style (str): Line style for unweighted (0) segments (default is dashed '--').
+        x (torch.Tensor): X-coordinates of the line.
+        y (torch.Tensor): Y-coordinates of the line.
+        w (torch.Tensor): Binary weights (0 or 1) for each segment of the line.
+        ax (Axes): Matplotlib axis to plot on.
+        color (str): Line color.
+        label (str): Label for the line.
+        true_style (str, optional): Line style for weighted (1) segments. Defaults to '-'.
+        false_style (str, optional): Line style for unweighted (0) segments. Defaults to '--'.
+
+    Returns:
+        Figure: The matplotlib figure (for consistency).
     """
     # Ensure inputs are numpy arrays
     x = x.numpy()
@@ -140,11 +156,15 @@ def plot_with_weighted_dashes(x: torch.Tensor,
                 label=label_)
         
 def visualize_guiner(data: dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor]], b_factor: str) -> Figure:
-    """Logs denoised samples as matplotlib figure. 
+    """
+    Visualize Guinier plots for amplitude analysis.
 
     Args:
-        outputs (List[Dict[str, Union[int, torch.Tensor]]]): Outputs from an epoch (training, validation, test).
-        phase: (str): Phase (training, validation, test).
+        data (dict[str, tuple[torch.Tensor, torch.Tensor, torch.Tensor]]): Dictionary of Guinier plot data.
+        b_factor (str): B-factor value to display in the title.
+
+    Returns:
+        Figure: Matplotlib figure with Guinier plots.
     """
     fig, ax = plt.subplots(figsize=(7,7))
     for idx, (label, (x, y, w)) in enumerate(data.items()):
@@ -158,6 +178,17 @@ def visualize_guiner(data: dict[str, tuple[torch.Tensor, torch.Tensor, torch.Ten
     return fig
 
 def visualize_histogram(hist: dict[str, torch.Tensor], angpix: float, length: int) -> Figure:
+    """
+    Visualize a histogram of resolution values.
+
+    Args:
+        hist (dict[str, torch.Tensor]): Histogram data with bin edges and counts.
+        angpix (float): Pixel size in Angstroms.
+        length (int): Map length for resolution calculation.
+
+    Returns:
+        Figure: Matplotlib figure with histogram.
+    """
     fig, ax = plt.subplots(figsize=(7,7))
     ax.bar(hist.bin_edges[1:], hist.hist, color='red', edgecolor='black', alpha=0.7)
     x_ticks = [f"{tick:.3f}" for tick in length * angpix / hist.bin_edges[1:]]
@@ -171,11 +202,15 @@ def visualize_histogram(hist: dict[str, torch.Tensor], angpix: float, length: in
     return fig
 
 def visualize_samples(samples: list[dict[str, torch.Tensor]], num_samples: int) -> Figure:
-    """Logs denoised samples as matplotlib figure. 
+    """
+    Visualize a grid of sample images from a list of sample dictionaries.
 
     Args:
-        samples (List[Dict[str, torch.Tensor]]): Outputs from an epoch (training, validation, test).
+        samples (list[dict[str, torch.Tensor]]): List of sample dictionaries.
         num_samples (int): Number of samples to visualize.
+
+    Returns:
+        Figure: Matplotlib figure with sample images.
     """
     num_samples = min(num_samples, len(samples['input']))
     fig, ax = plt.subplots(num_samples, len(samples.keys()), figsize=(4 * num_samples, 3 * len(samples.keys())))

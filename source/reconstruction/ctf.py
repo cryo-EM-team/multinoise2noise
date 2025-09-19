@@ -2,8 +2,26 @@ import torch
 
 
 class CTF(torch.nn.Module):
+    """
+    Contrast Transfer Function (CTF) module for electron microscopy image simulation.
+
+    This class computes the CTF for a given set of microscope and imaging parameters,
+    including support for damping and phase shift effects.
+    """
     def __init__(self, cs: float, kv: float, q0: float, angpix: float, size: int, do_damping: bool = True,
                  gamma_offset: float = 0.0):
+        """
+        Initialize the CTF module with microscope and image parameters.
+
+        Args:
+            cs (float): Spherical aberration coefficient (mm).
+            kv (float): Accelerating voltage (kV).
+            q0 (float): Amplitude contrast.
+            angpix (float): Pixel size in Angstroms.
+            size (int): Image size (for square image length of a side in pixels).
+            do_damping (bool, optional): Whether to apply envelope damping. Defaults to True.
+            gamma_offset (float, optional): Offset for the gamma phase. Defaults to 0.0.
+        """
         super(CTF, self).__init__()
         self.cs = cs
         self.kv = kv
@@ -13,9 +31,13 @@ class CTF(torch.nn.Module):
         self.gamma_offset = gamma_offset
         self.size = size
 
-        self.initialise()
+        self._initialise()
 
-    def initialise(self):
+    def _initialise(self):
+        """
+        Precompute constants and frequency grids needed for CTF calculation.
+        Registers buffers for wavelength, transformation matrices, and frequency grids.
+        """
         # Convert units
         local_cs = self.cs * 1e7
         local_kv = self.kv * 1e3
@@ -41,6 +63,19 @@ class CTF(torch.nn.Module):
         self.register_buffer("x", xx, persistent=False)
 
     def get_ctf(self, K4: torch.Tensor, K5: torch.Tensor, Axx: torch.Tensor, Axy: torch.Tensor, Ayy: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the CTF value for given transformation matrices and phase parameters.
+
+        Args:
+            K4 (torch.Tensor): Damping envelope parameter.
+            K5 (torch.Tensor): Phase shift parameter.
+            Axx (torch.Tensor): Transformation matrix element.
+            Axy (torch.Tensor): Transformation matrix element.
+            Ayy (torch.Tensor): Transformation matrix element.
+
+        Returns:
+            torch.Tensor: The computed CTF values.
+        """
         u2 = self.x ** 2 + self.y ** 2
         u4 = u2 ** 2
         gamma = self.K1 * (
@@ -56,6 +91,20 @@ class CTF(torch.nn.Module):
 
     def get_fftw_image(self, phase_shift: torch.Tensor, azimuthal_angle: torch.Tensor,
                        b_fac: torch.Tensor, deltaf_u: torch.Tensor, deltaf_v: torch.Tensor, ones: bool = False) -> torch.Tensor:
+        """
+        Generate the CTF image in Fourier space for a batch of parameters.
+
+        Args:
+            phase_shift (torch.Tensor): Phase shift values (degrees).
+            azimuthal_angle (torch.Tensor): Azimuthal angles (degrees).
+            b_fac (torch.Tensor): B-factor values.
+            deltaf_u (torch.Tensor): Defocus U values.
+            deltaf_v (torch.Tensor): Defocus V values.
+            ones (bool, optional): If True, returns an array of ones. Defaults to False.
+
+        Returns:
+            torch.Tensor: The CTF image in Fourier space.
+        """
         if ones:
             return torch.ones_like(self.x).repeat(deltaf_u.shape[0], 1, 1, 1)
         # Compute important Constants

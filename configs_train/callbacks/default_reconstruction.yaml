@@ -4,6 +4,7 @@ defaults:
   - rich_progress_bar
   - early_stopping
   - lr_monitor
+  - epoch_informer
   - _self_
 
 early_stopping:

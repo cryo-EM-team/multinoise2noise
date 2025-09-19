@@ -37,6 +37,9 @@ pre_exposure: 0
 create_projections: False
 original_reconstruction_path: ???
 
+reconstruction_wait: ${lightning_model.logging.reconstruction_wait}
+reconstruction_step: ${lightning_model.logging.reconstruction_step}
+
 # datasets
 datasets:
   train:
@@ -46,7 +49,7 @@ datasets:
     average_strategy: ${datamodule.average_strategy}
     splits: ${datamodule.splits}
     reverse: ${datamodule.splits}
-    h5_path: "${datamodule.dataset_path}/${datamodule.dataset_name}.h5"
+    h5_path: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}.h5"
     transform:
       _target_: torchvision.transforms.v2.Compose
       transforms:
@@ -66,7 +69,7 @@ datasets:
     average_strategy: ${datamodule.average_strategy}
     splits: ${datamodule.splits}
     reverse: ${datamodule.splits}
-    h5_path: "${datamodule.dataset_path}/${datamodule.dataset_name}.h5"
+    h5_path: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}.h5"
     transform:
       _target_: torchvision.transforms.v2.Compose
       transforms:

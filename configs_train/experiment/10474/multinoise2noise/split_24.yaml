@@ -1,0 +1,32 @@
+# @package _global_
+defaults:
+  - override /datamodule: "10474"
+  - override /lightning_model: multinoise2noise
+  - override /model: unet
+  - override /trainer: gpu
+  - override /callbacks: default_reconstruction
+  - override /logger: wandb
+  
+
+core:
+  group: noise2noise
+
+trainer:
+  min_epochs: 20
+  max_epochs: 500
+
+datamodule:
+  splits: 5
+  batch_size: 6
+  num_workers: 16
+  particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
+  original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
+
+lightning_model:
+  metrics:
+    _target_: torchmetrics.MetricCollection
+    metrics: []
+
+tags: ['noise2noise', 'unet', '10474', 'real']
+
+task_name: "split_24"

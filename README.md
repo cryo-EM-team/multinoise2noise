@@ -109,3 +109,7 @@ In `configs_denoise` create your configuration file. Check out the existing exam
 ```
 python3 -m source.denoise experiment=experiment_name.yaml
 ```
+
+## Important remarks
+1. As for now Reconstruction supports only D7 and O symmetries. Further symmetries can be added by preparation of the right symmetry files in ./source/reconstruction/symmetry_files/
+2. Repository contains code for 2 other cryoEM tasks: Motion Correction and Particle Extraction. Motion Correction is based on implementatgion from RELION, yet has reduced functionality.

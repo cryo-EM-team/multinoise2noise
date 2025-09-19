@@ -8,7 +8,7 @@ def auto_mask(img_in: torch.Tensor,
               extend_ini_mask_list: list[int], 
               width_soft_mask_edge: int) -> torch.Tensor:
     """
-    Reimplementation of the autoMask function in Python using PyTorch with pooling for mask extension/shrinking.
+    Function that computes mask for a given 3D electron map.
     
     Args:
         img_in (torch.Tensor): Input 3D tensor (image).

@@ -16,7 +16,6 @@ trainer:
   max_epochs: 500
 
 datamodule:
-  splits: 38
   batch_size: 2
   num_workers: 16
   particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
@@ -27,6 +26,9 @@ lightning_model:
     _target_: source.loss_functions.ctf_l2.CTF_MSELoss
     n: 1
     correct_frequencies: True
+  metrics:
+    _target_: torchmetrics.MetricCollection
+    metrics: []
 
 tags: ['noise2noise', 'unet', '10025', 'real']
 

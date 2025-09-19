@@ -38,17 +38,19 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         self.star = starfile.read(self.hparams.particles_star_path)
         if self.hparams.create_projections:
             self.star['particles']['rlnProjectionImage'] = self.star['particles']['rlnNoisyImage'].apply(lambda x: os.path.join(*(['Projections'] + x.split('/')[1:])))
-        angpix = self.star['optics']['rlnImagePixelSize'][0]
+        
         self.particles = self.star['particles'].copy()
         self.particles['noisy_path'] = self.particles['rlnNoisyImage'].apply(lambda x: os.path.join(self.hparams.dataset_path, x))
         if 'rlnCleanImage' in self.particles.keys():
             self.particles['clean_path'] = self.particles['rlnCleanImage'].apply(lambda x: os.path.join(self.hparams.dataset_path, x))
         if self.hparams.create_projections:
             self.particles["projection_path"] = self.particles["rlnProjectionImage"].apply(lambda x: os.path.join(self.hparams.dataset_path, x))
-        self.particles['rlnOriginXAngst'] /= angpix
-        self.particles['rlnOriginYAngst'] /= angpix
+        self.particles['rlnOriginXAngst'] /= self.hparams.angpix
+        self.particles['rlnOriginYAngst'] /= self.hparams.angpix
         if 'split' not in self.star['particles'].columns or self.hparams.recalculate_splits:
             self._create_splits()
+
+        self.current_epoch = 0
     
     def _create_splits(self):
         """Creates the train/val split movie-wise
@@ -136,14 +138,14 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
                 _recursive_=True,
             ) for idx in range(1,3)]
 
-        self.val_loader = CombinedLoader([DataLoader(
+        self.val_loaders = [DataLoader(
             dataset=dataset,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             shuffle=False, 
             persistent_workers=True,
             pin_memory=True,
-        ) for dataset in self.dataset_val], mode='sequential')
+        ) for dataset in self.dataset_val]
 
     def ctf_mean(self, ctf) -> torch.Tensor:
         ctfs = self.particles[self.particles.split == 'train'][['rlnDefocusU', 'rlnDefocusV', 'rlnDefocusAngle', 'rlnCtfBfactor', 'rlnPhaseShift', 'rlnNoisyImage']].groupby(
@@ -158,17 +160,31 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         return ctf_weights_abs[None, ...]
 
     
-    def train_dataloader(self) -> DataLoader:
+    def train_dataloader(self) -> CombinedLoader:
         return self.train_loader
-    
-    def val_dataloader(self) -> list[DataLoader]:
-        return self.val_loader
 
-    def test_dataloader(self) -> list[DataLoader]:
-        return self.val_dataloader()
+    def val_dataloader(self) -> CombinedLoader:
+        if (self.current_epoch >= self.hparams.reconstruction_wait and 
+            self.current_epoch % self.hparams.reconstruction_step == 0):
+            return CombinedLoader(self.val_loaders, mode='sequential')
+        if self.hparams.train_half == 1:
+            return CombinedLoader([DataLoader(EmptyDataset()), self.val_loaders[1]], mode='sequential')
+        elif self.hparams.train_half == 2:
+            return CombinedLoader([self.val_loaders[0], DataLoader(EmptyDataset())], mode='sequential')
+        return CombinedLoader(self.val_loaders, mode='sequential')
 
-    def predict_dataloader(self) -> list[DataLoader]:
+    def test_dataloader(self) -> CombinedLoader:
+        return CombinedLoader(self.val_loaders, mode='sequential')
+
+    def predict_dataloader(self) -> CombinedLoader:
         out_star = self.star.copy()
         out_star['particles'] = self.particles
         starfile.write(out_star, os.path.join(os.path.dirname(self.hparams.particles_star_path), 'denoised.star'))
-        return self.val_dataloader()
+        return CombinedLoader(self.val_loaders, mode='sequential')
+
+
+class EmptyDataset(torch.utils.data.Dataset):
+    def __len__(self):
+        return 0
+    def __getitem__(self, idx):
+        raise IndexError("EmptyDataset has no items")

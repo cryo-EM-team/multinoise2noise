@@ -2,12 +2,23 @@ import torch
 
 
 class FourierTransformer:
+    """
+    A class for performing Fourier domain operations on batches of images,
+    including sign flipping, shifting in Fourier space, and preprocessing
+    for reconstruction tasks.
+    """
     def sign_flip(self, f_image: torch.Tensor):
+        """
+        Flip the sign of every other value in the flattened Fourier image tensor.
+
+        Args:
+            f_image (torch.Tensor): A tensor containing Fourier-transformed images.
+        """
         f_image.view(f_image.shape[0], -1)[:, 1::2] *= -1
 
     def shift_image_in_fourier_transform(self, in_array: torch.Tensor,
-                                        xshift: torch.Tensor,
-                                        yshift: torch.Tensor) -> torch.Tensor:
+                                         xshift: torch.Tensor,
+                                         yshift: torch.Tensor) -> torch.Tensor:
         """
         Shift a batch of Fourier-transformed images in the Fourier domain by given x and y shifts.
         
@@ -41,12 +52,34 @@ class FourierTransformer:
         return shifted_F
 
     def fourier_preprocessing(self, batch: torch.Tensor, xshift: torch.Tensor, yshift: torch.Tensor) -> torch.Tensor:
+        """
+        Apply Fourier transform and shift preprocessing to a batch of images.
+
+        Args:
+            batch (torch.Tensor): Batch of images to be transformed.
+            xshift (torch.Tensor): x-shifts for each image (in pixels), shape (B,).
+            yshift (torch.Tensor): y-shifts for each image (in pixels), shape (B,).
+
+        Returns:
+            torch.Tensor: Preprocessed images in the Fourier domain.
+        """
         f_image = torch.fft.rfftn(batch, dim=(-2, -1), norm="forward")
         self.sign_flip(f_image)
         f_shifted = self.shift_image_in_fourier_transform(f_image, xshift.double(), yshift.double())
         return f_shifted
 
     def reverse_fourier_preprocessing(self, batch: torch.Tensor, xshift: torch.Tensor, yshift: torch.Tensor) -> torch.Tensor:
+        """
+        Reverse the Fourier preprocessing by shifting and applying the inverse Fourier transform.
+
+        Args:
+            batch (torch.Tensor): Batch of Fourier domain images to be inverse transformed.
+            xshift (torch.Tensor): x-shifts for each image (in pixels), shape (B,).
+            yshift (torch.Tensor): y-shifts for each image (in pixels), shape (B,).
+
+        Returns:
+            torch.Tensor: Images transformed back to the spatial domain.
+        """
         f_image = self.shift_image_in_fourier_transform(batch, -xshift.double(), -yshift.double())
         self.sign_flip(f_image)
         image = torch.fft.irfftn(f_image, dim=(-2, -1), norm="forward")

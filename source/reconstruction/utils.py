@@ -2,17 +2,65 @@ import torch
 
 
 def real_round(input: torch.Tensor) -> torch.Tensor:
+    """
+    Round each element of the input tensor to the nearest integer.
+    Created as torch.round uses banker's rounding.
+
+    Args:
+        input (torch.Tensor): Input tensor.
+
+    Returns:
+        torch.Tensor: Tensor with rounded values.
+    """
     return torch.floor(input + 0.5)
 
 def create_centered_zyx_grid(dimz: int, dimy: int, dimx: int) -> torch.Tensor:
+    """
+    Create a centered 3D spectral coordinate grid with ZYX ordering.
+
+    Args:
+        dimz (int): Depth of the grid (Z dimension).
+        dimy (int): Height of the grid (Y dimension).
+        dimx (int): Width of the grid (X dimension).
+
+    Returns:
+        torch.Tensor: Tensor of shape (dimz, dimy, dimx, 3) containing (z, y, x) coordinates.
+    """
     x = torch.arange(0, dimx, dtype=torch.double)
     y = torch.arange(-(dimy // 2), dimx, dtype=torch.double)
     z = torch.arange(-(dimz // 2), dimx, dtype=torch.double)
-    z_grid, y_grid, x_grid = torch.meshgrid(z, y, x, indexing="ij")
-    zyx = torch.stack((z_grid, y_grid, x_grid), dim=-1)
+    zyx = torch.stack(torch.meshgrid(z, y, x, indexing="ij"), dim=-1)
+    return zyx
+
+def create_centered_xyz_grid(dimz: int, dimy: int, dimx: int) -> torch.Tensor:
+    """
+    Create a centered 3D spectral coordinate grid with XYZ ordering.
+
+    Args:
+        dimz (int): Depth of the grid (Z dimension).
+        dimy (int): Height of the grid (Y dimension).
+        dimx (int): Width of the grid (X dimension).
+
+    Returns:
+        torch.Tensor: Tensor of shape (dimz, dimy, dimx, 3) containing (z, y, x) coordinates.
+    """
+    x = torch.arange(0, dimx, dtype=torch.double)
+    y = torch.arange(-(dimy // 2), dimx, dtype=torch.double)
+    z = torch.arange(-(dimz // 2), dimx, dtype=torch.double)
+    zyx = torch.stack(torch.meshgrid(z, y, x, indexing="ij")[::-1], dim=-1)
     return zyx
     
 def calculate_fsc(half_1: torch.Tensor, half_2: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate the Fourier Shell Correlation (FSC) between two half-maps.
+
+    Args:
+        half_1 (torch.Tensor): First half-map (real or complex tensor).
+        half_2 (torch.Tensor): Second half-map (real or complex tensor).
+
+    Returns:
+        torch.Tensor: FSC curve as a 1D tensor.
+    """
     f_half_1 = half_1 if half_1.is_complex() else torch.fft.rfftn(half_1, norm="forward")
     f_half_2 = half_2 if half_2.is_complex() else torch.fft.rfftn(half_2, norm="forward")
 
@@ -30,12 +78,20 @@ def calculate_fsc(half_1: torch.Tensor, half_2: torch.Tensor) -> torch.Tensor:
     num.index_add_(0, r, norm_both)
     den1.index_add_(0, r, norm_1)
     den2.index_add_(0, r, norm_2)
-
     fsc = torch.nan_to_num(num / torch.sqrt(den1 * den2), 0)
     fsc[0] = 1.
     return fsc
 
 def create_fourier_distance_map(shape: torch.Tensor) -> torch.Tensor:
+    """
+    Create a map of Euclidean distances in Fourier space for a given shape.
+
+    Args:
+        shape (torch.Tensor): Shape of the Fourier-transformed tensor.
+
+    Returns:
+        torch.Tensor: Tensor of distances for each Fourier voxel.
+    """
     coords = torch.stack(torch.meshgrid(
         torch.fft.fftfreq(shape[0], 1/shape[0], dtype=torch.double),
         torch.fft.fftfreq(shape[1], 1/shape[1], dtype=torch.double),
@@ -45,9 +101,30 @@ def create_fourier_distance_map(shape: torch.Tensor) -> torch.Tensor:
     return coords.square().sum(dim=-1).sqrt()
 
 def low_resolution_join_halves(fsc: torch.Tensor, angpix: float, threshold: float) -> torch.Tensor:
+    """
+    Replace FSC values above a resolution threshold with 1.
+
+    Args:
+        fsc (torch.Tensor): FSC curve.
+        angpix (float): Pixel size in Angstroms.
+        threshold (float): Resolution threshold.
+
+    Returns:
+        torch.Tensor: Modified FSC curve.
+    """
     return torch.where(((fsc.shape[0] - 1) * 2 * angpix / torch.arange(fsc.shape[0])) < threshold, fsc, 1)
 
 def calculate_resolution(fsc: torch.Tensor, angpix: float) -> float:
+    """
+    Calculate the resolution at which FSC drops below 0.143.
+
+    Args:
+        fsc (torch.Tensor): FSC curve.
+        angpix (float): Pixel size in Angstroms.
+
+    Returns:
+        float: Estimated resolution in Angstroms.
+    """
     vec = torch.nonzero(fsc < 0.143, as_tuple=False)
     if len(vec) > 0:
         i = vec[0].item() - 1
@@ -58,12 +135,32 @@ def calculate_resolution(fsc: torch.Tensor, angpix: float) -> float:
     return 50.
 
 def get_downsampled_average(data: torch.Tensor, weight: torch.Tensor, divide: bool=True) -> torch.Tensor:
+    """
+    Compute the downsampled average of data, optionally dividing by downsampled weights.
+
+    Args:
+        data (torch.Tensor): Input data tensor.
+        weight (torch.Tensor): Weight tensor.
+        divide (bool, optional): Whether to divide by weights. Defaults to True.
+
+    Returns:
+        torch.Tensor: Downsampled average tensor.
+    """
     downsampled_data = downsample(data)
     downsampled_weight = downsample(weight) if divide else 8
     downsampled_data /= downsampled_weight
     return downsampled_data
 
 def downsample(data: torch.Tensor) -> torch.Tensor:
+    """
+    Downsample a 3D tensor by summing over 2x2x2 blocks.
+
+    Args:
+        data (torch.Tensor): Input 3D tensor.
+
+    Returns:
+        torch.Tensor: Downsampled tensor.
+    """
     data_patches = torch.cat((data[:, :, 0:1], data, data[:, :, -1:]), dim=2)
     data_patches = torch.cat((data_patches[:, :1, :],
                               data_patches[:, :(data_patches.shape[1] // 2 + 1), :], 

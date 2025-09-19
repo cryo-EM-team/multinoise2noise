@@ -14,7 +14,7 @@ angpix: 0.813
 dose_per_frame: 1.0
 pre_exposure: 0
 
-original_reconstruction_path: "${datamodule.dataset_path}/emd_31310.mrc"
+original_reconstruction_path: "${datamodule.dataset_path}/emd_31310.map"
 
 defaults:
   - base

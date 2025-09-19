@@ -22,6 +22,11 @@ datamodule:
   particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
   original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
 
+lightning_model:
+  metrics:
+    _target_: torchmetrics.MetricCollection
+    metrics: []
+
 tags: ['noise2noise', 'unet', '10025', 'real']
 
 task_name: "noise2noise"

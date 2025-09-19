@@ -15,16 +15,14 @@ from source.reconstruction.fourier_transformer import FourierTransformer
 
 
 class Reconstructor(L.LightningModule):
-    """Module performing process of reconstruction. It is composed of all reconstruction steps.
-    """
-
+    """Module performing process of reconstruction. It is composed of all reconstruction steps."""
     def __init__(self, back_projector: BackProjector, fourier_transformer: FourierTransformer, extractor: Extractor, **kwargs):
         """
         Args:
-            back_projector: Object responsible for back-projecting 2D images onto 3D space
-            fourier_transformer: Object responsible for transforming 2D images into fourier space
-            extractor: Object responsible for computation of ctf weights and normalisation of image
-            **kwargs
+            back_projector (BackProjector): Object responsible for back-projecting 2D images onto 3D space.
+            fourier_transformer (FourierTransformer): Object responsible for transforming 2D images into Fourier space.
+            extractor (Extractor): Object responsible for computation of CTF weights and normalization of image.
+            **kwargs: Additional keyword arguments for hyperparameters.
         """
         super().__init__()
         self.save_hyperparameters(ignore=['extractor', 'back_projector', 'fourier_transformer'])
@@ -39,13 +37,18 @@ class Reconstructor(L.LightningModule):
 
     def forward(self, image: Tensor, shifts: dict[str, torch.Tensor], angles_matrix: torch.Tensor, ctf_params: dict[str, object], fom: torch.Tensor, bckp_idx: int = None) -> None:
         """
-        Transforming and back-projecting batch of images
+        Transform and back-project a batch of images.
+
         Args:
-            image: Tensor representing picture
-            ctf_params: parameters of the ctf correction
-            angles_matrix: angles_matrix
-            shifts: shifts
-            fom: figure of merit weight
+            image (Tensor): Tensor representing the image.
+            shifts (dict[str, torch.Tensor]): Dictionary of x and y shifts.
+            angles_matrix (torch.Tensor): Matrix of projection angles.
+            ctf_params (dict[str, object]): Parameters for CTF correction.
+            fom (torch.Tensor): Figure of merit weights.
+            bckp_idx (int, optional): Index of the back projector to use.
+
+        Returns:
+            None
         """
         if bckp_idx is None:
             bckp_idx = self.bckp_idx
@@ -59,10 +62,20 @@ class Reconstructor(L.LightningModule):
         fftw_image *= fftw_image
         shifted_f *= fom
         fftw_image *= fom
-        self.back_projector[bckp_idx].backproject2Dto3D(shifted_f, angles_matrix.clone(), fftw_image)
-        return None
+        self.back_projector[bckp_idx].backproject2Dto3D(shifted_f, angles_matrix, fftw_image)
 
     def backward(self, shifts: dict[str, torch.Tensor], angles_matrix: torch.Tensor, bckp_idx: int = None) ->  torch.Tensor:
+        """
+        Perform the backward operation: project 3D volume to 2D images and reverse Fourier preprocessing.
+
+        Args:
+            shifts (dict[str, torch.Tensor]): Dictionary of x and y shifts.
+            angles_matrix (torch.Tensor): Matrix of projection angles.
+            bckp_idx (int, optional): Index of the back projector to use.
+
+        Returns:
+            torch.Tensor: Normalized image after backward projection.
+        """
         if bckp_idx is None:
             bckp_idx = self.bckp_idx
         shifted_f = self.back_projector[bckp_idx].project3Dto2D(angles_matrix.clone())
@@ -72,48 +85,69 @@ class Reconstructor(L.LightningModule):
     
     def predict_step(self, test_batch: object, batch_idx: int) -> dict[str, torch.Tensor]:
         """
-            Perform a prediction step
+        Perform a prediction step.
+
         Args:
-            test_batch: Batch of test data
-            batch_idx: index of batch
+            test_batch (object): Batch of test data.
+            batch_idx (int): Index of the batch.
 
         Returns:
-            Computed predictions
+            dict[str, torch.Tensor]: Computed predictions.
         """
         self.forward(**test_batch)
         return None
 
     def on_predict_epoch_end(self, bckp_idx: int = None) -> None:
+        """
+        Perform symmetrization at the end of a prediction epoch.
+
+        Args:
+            bckp_idx (int, optional): Index of the back projector to symmetrize.
+        """
         bckp_idx = bckp_idx if bckp_idx is not None else self.bckp_idx
         self.back_projector[bckp_idx].symmetrise()
 
     def full_on_predict_epoch_end(self) -> None:
+        """
+        Perform symmetrization for all back projectors at the end of a prediction epoch.
+        """
         self.on_predict_epoch_end(0)
         self.on_predict_epoch_end(1)
     
     def finish_reconstruction(self) -> dict[str, torch.Tensor]:
-        avg_1 = torch.fft.ifftshift(
-            get_downsampled_average(self.back_projector[0].data, self.back_projector[0].weight, self.hparams.divide_avg), 
-            dim=(0,1))
-        avg_2 = torch.fft.ifftshift(
-            get_downsampled_average(self.back_projector[1].data, self.back_projector[1].weight, self.hparams.divide_avg), 
-            dim=(0,1))
-        results = {}
-        results['fsc'] = low_resolution_join_halves(calculate_fsc(avg_1, avg_2), self.extractor.ctf.angpix, self.hparams.low_resol_join_halves)
+        """
+        Finalize the reconstruction process, compute averages, FSC, resolution, and save results.
 
-        weight_modifiers, metadata = self.create_ssnr_arrays(results['fsc'])
-        results['resolution'] = calculate_resolution(results['fsc'], self.extractor.ctf.angpix)
+        Returns:
+            dict[str, torch.Tensor]: Dictionary containing reconstruction results and metadata.
+        """
+        results = {}
+
+        full_weight = self.back_projector[0].weight + self.back_projector[1].weight
+        full_data = self.back_projector[0].data + self.back_projector[1].data
         results['half_1'] = self.back_projector[0].reconstruct()
         results['half_2'] = self.back_projector[1].reconstruct()
         self.save_reconstruction(results['half_1'], "half_1_reconstruction.mrc")
         self.save_reconstruction(results['half_2'], "half_2_reconstruction.mrc")
-        results['final_backprojector'] = copy.deepcopy(self.back_projector[0])
-        results['final_backprojector'].weight += self.back_projector[1].weight + weight_modifiers
-        results['final_backprojector'].data += self.back_projector[1].data
-        results['reconstruction'] = results['final_backprojector'].reconstruct()
-        
-        self.save_reconstruction(results['reconstruction'], "reconstruction.mrc")
 
+        results['fsc'] = low_resolution_join_halves(
+            calculate_fsc(results['half_1'], results['half_2']), 
+            self.extractor.ctf.angpix, 
+            self.hparams.low_resol_join_halves)
+        weight_modifiers, metadata = self.create_ssnr_arrays(results['fsc'])
+        del weight_modifiers
+        results['resolution'] = calculate_resolution(results['fsc'], self.extractor.ctf.angpix)
+
+        weight_0 = self.back_projector[0].weight.clone()
+        data_0 = self.back_projector[0].data.clone()
+        self.back_projector[0].weight = full_weight
+        self.back_projector[0].data = full_data
+        self.back_projector[0].weight_precalculated = False
+        results['reconstruction'] = self.back_projector[0].reconstruct(weight_modifiers=weight_modifiers)
+        self.back_projector[0].weight = weight_0
+        self.back_projector[0].data = data_0
+        del weight_0, data_0, full_weight, full_data
+        self.save_reconstruction(results['reconstruction'], "reconstruction.mrc")
         metadata = {"general": {"resolution": results['resolution']}, "fsc": metadata}
         if self.hparams.postprocess:
             postprocess_results = postprocess(results['half_1'], results['half_2'], self.extractor.ctf.angpix, self.hparams.autob_lowres, mask=self.mask, symmetry=self.back_projector[0].symmetry)
@@ -132,6 +166,13 @@ class Reconstructor(L.LightningModule):
         return results
 
     def save_reconstruction(self, reconstruction: torch.Tensor, file_name: str):
+        """
+        Save a reconstruction tensor to an MRC file.
+
+        Args:
+            reconstruction (torch.Tensor): The reconstruction tensor to save.
+            file_name (str): Name of the output file.
+        """
         full_path = os.path.join(self.hparams.output_dir, file_name)
         directory = os.path.dirname(full_path)
         os.makedirs(directory, exist_ok=True)
@@ -145,9 +186,25 @@ class Reconstructor(L.LightningModule):
             mrc.update_header_stats()
 
     def save_metadata(self, metadata: dict[str, pd.DataFrame | dict[str, float]]) -> None:
+        """
+        Save metadata to a STAR file.
+
+        Args:
+            metadata (dict): Metadata dictionary to save.
+        """
         starfile.write(metadata, os.path.join(self.hparams.output_dir, "metadata.star"), overwrite=True)
 
     def create_ssnr_arrays(self, fsc: torch.Tensor, is_whole_instead_of_half: bool = True) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        """
+        Create SSNR (signal-to-noise ratio) arrays and related metadata from FSC.
+
+        Args:
+            fsc (torch.Tensor): Fourier Shell Correlation curve.
+            is_whole_instead_of_half (bool, optional): Whether to use whole map instead of half. Defaults to True.
+
+        Returns:
+            tuple: (weight_modifiers, metadata) where weight_modifiers is a tensor and metadata is a DataFrame.
+        """
         rmax = real_round(torch.Tensor([self.back_projector[0].ori_size / 2]) * self.back_projector[0].padding_factor)
         oversampling_correction = self.back_projector[0].padding_factor**3
 
@@ -183,6 +240,8 @@ class Reconstructor(L.LightningModule):
         return weight_modifiers, pd.DataFrame({"ssnr": ssnr, "sigma2": sigma2, "tau2": tau2, "fsc": fsc})
 
     def reset_data(self) -> None:
-        """Reset data in back projectors"""
+        """
+        Reset data in back projectors by zeroing their data tensors.
+        """
         for back_projector in self.back_projector:
             back_projector.data.zero_()

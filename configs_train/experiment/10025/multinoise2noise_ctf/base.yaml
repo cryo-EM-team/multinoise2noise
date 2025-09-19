@@ -27,6 +27,9 @@ lightning_model:
     _target_: source.loss_functions.ctf_dw_l2.CTF_MSELoss
     n: 1
     correct_frequencies: True
+  metrics:
+    _target_: torchmetrics.MetricCollection
+    metrics: []
 
 tags: ['noise2noise', 'unet', '10025', 'real']
 

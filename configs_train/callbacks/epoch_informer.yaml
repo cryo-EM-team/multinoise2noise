@@ -1,0 +1,2 @@
+epoch_informer:
+  _target_: source.callbacks.epoch_informer.EpochInformerCallback

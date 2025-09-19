@@ -3,17 +3,37 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 
-from source.reconstruction.utils import real_round, calculate_fsc, create_fourier_distance_map, calculate_resolution, create_centered_zyx_grid
+from source.reconstruction.utils import real_round, calculate_fsc, create_fourier_distance_map, calculate_resolution
 from source.reconstruction.symmetry import Symmetry
 
 
 def determine_randomization_threshold(fsc: torch.Tensor, randomize_fsc_at: float = 0.8) -> torch.Tensor:
+    """
+    Find the first index where the FSC drops below the randomization threshold.
+
+    Args:
+        fsc (torch.Tensor): Fourier Shell Correlation curve.
+        randomize_fsc_at (float): Threshold value for randomization.
+
+    Returns:
+        int: Index where FSC drops below the threshold, or length of fsc if not found.
+    """
     vec = torch.nonzero(fsc < randomize_fsc_at, as_tuple=False)
     if len(vec) > 0:
         return vec[0].item()
     return len(fsc)
 
 def randomize_phases(half_map: torch.Tensor, radius: int) -> torch.Tensor:
+    """
+    Randomize the phases of a half-map beyond a given radius in Fourier space.
+
+    Args:
+        half_map (torch.Tensor): Input half-map (3D tensor).
+        radius (int): Radius beyond which phases are randomized.
+
+    Returns:
+        torch.Tensor: Half-map with randomized phases beyond the radius.
+    """
     f_half_map = torch.fft.rfftn(half_map, norm="forward")
     distance = create_fourier_distance_map(f_half_map.shape)
     mask = (distance >= radius).flatten()
@@ -23,20 +43,54 @@ def randomize_phases(half_map: torch.Tensor, radius: int) -> torch.Tensor:
     return torch.fft.irfftn(f_half_map, norm="forward")
 
 def calculate_fsc_true(fsc_masked: torch.Tensor, fsc_random_masked: torch.Tensor, randomize_at: int) -> torch.Tensor:
+    """
+    Calculate the corrected FSC curve using masked and randomized FSCs.
+
+    Args:
+        fsc_masked (torch.Tensor): FSC of masked maps.
+        fsc_random_masked (torch.Tensor): FSC of masked maps with randomized phases.
+        randomize_at (int): Index at which randomization starts.
+
+    Returns:
+        torch.Tensor: Corrected FSC curve.
+    """
     i = 2
     if randomize_at >= fsc_masked.shape[0] - i:
         return fsc_masked
     corected_fsc = (fsc_masked[randomize_at+i:] - fsc_random_masked[randomize_at+i:]) / (1 - fsc_random_masked[randomize_at+i:])
     return torch.cat([fsc_masked[:randomize_at+i], corected_fsc])
 
-def prepare_g_plot_for_fit(ln_f: torch.Tensor, autob_lowres: float, angpix: float, size: int) -> tuple[torch.Tensor, torch.Tensor]:
+def prepare_g_plot_for_fit(ln_f: torch.Tensor, autob_lowres: float, angpix: float, size: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Prepare data for Guinier plot fitting.
+
+    Args:
+        ln_f (torch.Tensor): Logarithm of Fourier amplitudes.
+        autob_lowres (float): Low resolution cutoff.
+        angpix (float): Pixel size in Angstroms.
+        size (int): Map size.
+
+    Returns:
+        tuple: (x, ln_f, w) where x is 1/res^2, ln_f is log amplitudes, w is mask for fitting.
+    """
     mask = torch.isfinite(ln_f)
     res = size * angpix / torch.arange(ln_f.shape[0], dtype=torch.double)
     x = 1 / res.square()
     w = mask * (res <= autob_lowres) * (res >= (2 * angpix))
-    return x, ln_f, w, 
+    return x, ln_f, w
 
 def make_guinier_plot(f_density_map: torch.Tensor, autob_lowres: float, angpix: float) -> torch.Tensor:
+    """
+    Compute data for a Guinier plot from a Fourier density map.
+
+    Args:
+        f_density_map (torch.Tensor): Fourier-transformed density map.
+        autob_lowres (float): Low resolution cutoff.
+        angpix (float): Pixel size in Angstroms.
+
+    Returns:
+        tuple: (x, y, w) for Guinier plot fitting.
+    """
     r = create_fourier_distance_map(f_density_map.shape).flatten()
     r = real_round(r)
     mask = r < f_density_map.shape[2]
@@ -49,6 +103,16 @@ def make_guinier_plot(f_density_map: torch.Tensor, autob_lowres: float, angpix: 
     return x, y, w
 
 def apply_fsc_weighting(f_density_map: torch.Tensor, fsc: torch.Tensor) -> torch.Tensor:
+    """
+    Apply FSC-based weighting to a Fourier density map.
+
+    Args:
+        f_density_map (torch.Tensor): Fourier-transformed density map.
+        fsc (torch.Tensor): FSC curve.
+
+    Returns:
+        torch.Tensor: Weighted Fourier density map.
+    """
     i = torch.nonzero(fsc <= 0, as_tuple=False)
     if len(i) > 0:
         i = i[0].item()
@@ -85,23 +149,34 @@ def fit_straight_line_lstsq(x: torch.Tensor, y: torch.Tensor, w: torch.Tensor) -
 
     return slope.item(), intercept.item()
 
-def apply_bfactor(f_density_map: torch.Tensor, global_bfactor: float, angpix: float) -> torch.Tensor:
+def apply_bfactor(f_density_map: torch.Tensor, global_bfactor: float, angpix: float) -> None:
+    """
+    Apply a global B-factor to a Fourier density map in place.
+
+    Args:
+        f_density_map (torch.Tensor): Fourier-transformed density map.
+        global_bfactor (float): B-factor value.
+        angpix (float): Pixel size in Angstroms.
+    """
     r = create_fourier_distance_map(f_density_map.shape)
     r = (r / (f_density_map.shape[0] * angpix))
     mask = r <= (0.5/angpix)
     weights = torch.exp((-global_bfactor / 4) * r.square()) * mask
-    return f_density_map * weights
+    f_density_map *= weights
 
 def plot_with_weighted_dashes(x: torch.Tensor, y: torch.Tensor, w: torch.Tensor, ax, color: str, label: str, true_style: str = '-', false_style: str = '--'):
     """
     Plot a line with parts styled as solid or dashed based on binary weights.
 
     Args:
-        x (list or np.ndarray): X-coordinates of the line.
-        y (list or np.ndarray): Y-coordinates of the line.
-        weights (list or np.ndarray): Binary weights (0 or 1) for each segment of the line.
-        solid_style (str): Line style for weighted (1) segments (default is solid '-').
-        dashed_style (str): Line style for unweighted (0) segments (default is dashed '--').
+        x (torch.Tensor): X-coordinates of the line.
+        y (torch.Tensor): Y-coordinates of the line.
+        w (torch.Tensor): Binary weights (0 or 1) for each segment of the line.
+        ax: Matplotlib axis to plot on.
+        color (str): Line color.
+        label (str): Label for the plot.
+        true_style (str): Line style for weighted (1) segments.
+        false_style (str): Line style for unweighted (0) segments.
     """
     # Ensure inputs are numpy arrays
     x = x.numpy()
@@ -115,7 +190,19 @@ def plot_with_weighted_dashes(x: torch.Tensor, y: torch.Tensor, w: torch.Tensor,
                 linestyle=true_style if weights[i] == 1 else false_style, 
                 label=label_)
 
-def sharpen_map(density_map: torch.Tensor, fsc: torch.Tensor, angpix: float, autob_lowres: float) -> tuple[torch.Tensor, float, float, dict[str, torch.Tensor]]:
+def sharpen_map(density_map: torch.Tensor, fsc: torch.Tensor, angpix: float, autob_lowres: float) -> dict[str, torch.Tensor]:
+    """
+    Sharpen a density map using FSC weighting and Guinier plot fitting.
+
+    Args:
+        density_map (torch.Tensor): Input density map.
+        fsc (torch.Tensor): FSC curve.
+        angpix (float): Pixel size in Angstroms.
+        autob_lowres (float): Low resolution cutoff.
+
+    Returns:
+        dict: Contains sharpened map, B-factor, intercept, and Guinier plot data.
+    """
     f_density_map = torch.fft.rfftn(density_map, norm="forward")
     guiner = {"Original": make_guinier_plot(f_density_map, autob_lowres, angpix)}
     f_density_map = apply_fsc_weighting(f_density_map, fsc)
@@ -123,10 +210,10 @@ def sharpen_map(density_map: torch.Tensor, fsc: torch.Tensor, angpix: float, aut
     
     slope, intercept = fit_straight_line_lstsq(*guiner["Weighted"])
     b_factor = slope * 4
-    sharpened_map = apply_bfactor(f_density_map, b_factor, angpix)
-    guiner["Sharpened"] = make_guinier_plot(sharpened_map, autob_lowres, angpix)
+    apply_bfactor(f_density_map, b_factor, angpix)
+    guiner["Sharpened"] = make_guinier_plot(f_density_map, autob_lowres, angpix)
     
-    return {"sharp_map": torch.fft.irfftn(sharpened_map, norm="forward"), "b_factor": b_factor, "intercept": intercept, "guiner": guiner}
+    return {"sharp_map": torch.fft.irfftn(f_density_map, norm="forward"), "b_factor": b_factor, "intercept": intercept, "guiner": guiner}
 
 def raised_cosine_mask(mask_shape, radius, radius_p, center_x, center_y, center_z):
     """
@@ -249,6 +336,26 @@ def locres(half_1: torch.Tensor,
            locres_sampling: int = 25, 
            filter_edge_width: int = 2,
            symmetry: Symmetry = None) -> dict[str, torch.Tensor]:
+    """
+    Calculate local resolution and filtered map using local FSC and B-factor correction.
+
+    Args:
+        half_1 (torch.Tensor): First half-map.
+        half_2 (torch.Tensor): Second half-map.
+        half_1_pr (torch.Tensor): First half-map with randomized phases.
+        half_2_pr (torch.Tensor): Second half-map with randomized phases.
+        b_factor (float): Global B-factor.
+        angpix (float): Pixel size in Angstroms.
+        randomize_at (int): Index for phase randomization.
+        mask (torch.Tensor, optional): Mask to apply.
+        mean_map (torch.Tensor, optional): Mean map for sharpening.
+        locres_sampling (int, optional): Sampling step for local resolution.
+        filter_edge_width (int, optional): Edge width for filtering.
+        symmetry (Symmetry, optional): Symmetry object for symmetrization.
+
+    Returns:
+        dict: Contains local resolution map, filtered map, and optionally resolution histogram.
+    """
     fsc_unmasked = calculate_fsc(half_1, half_2)
     step_size = real_round(torch.tensor(locres_sampling / angpix))
     maskrad_pix = real_round(torch.tensor(locres_sampling / angpix / 2))
@@ -256,7 +363,8 @@ def locres(half_1: torch.Tensor,
 
     if mean_map is None:
         mean_map = (half_1+half_2)/2
-    f_sharp_map = apply_bfactor(torch.fft.rfftn(mean_map, norm="forward"), b_factor, angpix)
+    f_sharp_map = torch.fft.rfftn(mean_map, norm="forward")
+    apply_bfactor(f_sharp_map, b_factor, angpix)
     
     Ifil = Ilocres = Isumw = 0
     coords = generate_3d_coordinates(half_1.shape, step_size)
@@ -311,6 +419,16 @@ def symmetrise_results(data: torch.Tensor, symmetry: Symmetry) -> torch.Tensor:
         torch.linspace(-1, 1, W, dtype=data.dtype, device=data.device),
         indexing="ij"
     )
+    """
+    Apply symmetry operations to a 3D tensor by averaging over all symmetry-related positions.
+
+    Args:
+        data (torch.Tensor): 3D tensor to be symmetrized.
+        symmetry (Symmetry): Symmetry object containing rotation matrices.
+
+    Returns:
+        torch.Tensor: Symmetrized tensor.
+    """
     grid_flat = torch.stack([x, y, z], dim=-1).reshape(-1, 3)  # Shape: [D, H, W, 3]
 
     rotated_sum = data.clone()
@@ -343,17 +461,21 @@ def postprocess(I1: torch.Tensor,
                 randomize_fsc_at: float = 0.8, 
                 symmetry: Symmetry = None) -> dict[str, torch.Tensor]:
     """
-    Python implementation of the run function using PyTorch.
+    Perform postprocessing on two half-maps, including FSC calculation, sharpening, and local resolution estimation.
 
     Args:
         I1 (torch.Tensor): First half-map (3D tensor).
         I2 (torch.Tensor): Second half-map (3D tensor).
         angpix (float): Pixel size in Angstroms.
-        mask (torch.Tensor): Mask to apply (3D tensor, optional).
-        randomize_fsc_at (float): FSC threshold for randomization (default: 0.143).
+        autob_lowres (float): Low resolution cutoff for sharpening.
+        mask (torch.Tensor, optional): Mask to apply (3D tensor).
+        mean_map (torch.Tensor, optional): Mean map for sharpening.
+        randomize_fsc_at (float, optional): FSC threshold for phase randomization.
+        symmetry (Symmetry, optional): Symmetry object for symmetrization.
+
+    Returns:
+        dict: Dictionary containing sharpened map, FSC curves, local resolution map, and filtered map.
     """
-    # Calculate FSC of unmasked maps
-    
     fsc_unmasked = calculate_fsc(I1, I2)
     fsc_dict = {"fsc unmasked": fsc_unmasked}
 

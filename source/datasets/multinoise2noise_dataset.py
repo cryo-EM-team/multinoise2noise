@@ -24,6 +24,7 @@ class MultiNoise2NoiseDataset(Dataset):
         do_fom_weighting: bool = False,
         training: bool = False,
         h5_path: str = None,
+        h5_path_clean: str = None,
     ) -> None:
         self.data = data
         self.average_strategy = average_strategy
@@ -33,7 +34,9 @@ class MultiNoise2NoiseDataset(Dataset):
         self.do_fom_weighting = do_fom_weighting
         self.training = training
         self.h5_path = h5_path
+        self.h5_path_clean = h5_path_clean
         self.h5_data = None
+        self.h5_data_clean = None
 
     def __len__(self) -> int:
         return len(self.data)
@@ -44,7 +47,7 @@ class MultiNoise2NoiseDataset(Dataset):
         results = {}
         results['input'] = self.load_image(row['noisy_path'], particle_index)
         if 'clean_path' in self.data.columns and not self.training:
-            results['clean'] = self.load_image(row['clean_path'], particle_index)
+            results['clean'] = self.load_image(row['clean_path'], particle_index, clean=True)
             results['input'] = np.concatenate([results['input'], results['clean']], axis=0)
         results['input'] = np.moveaxis(results['input'], 0, -1)
         results['input'] = self.transform(results['input'])
@@ -85,14 +88,19 @@ class MultiNoise2NoiseDataset(Dataset):
         results['file'] = row['rlnImageName']
         return results
     
-    def load_image(self, path: str, particle_index: int) -> torch.Tensor:
+    def load_image(self, path: str, particle_index: int, clean: bool = False) -> torch.Tensor:
         img = None
         if '.mrc' in path:
             img = mrcfile.open(path, permissive=True, mode='r').data.copy()
         elif '.h5' in path and 'particle_index' in self.data.columns:
-            if self.h5_path is not None and self.h5_data is None:
+            if clean:
+                if self.h5_path_clean is not None and self.h5_data_clean is None:
+                    self.h5_data_clean = h5py.File(self.h5_path_clean, 'r', libver='latest', swmr=True)
+                img = self.h5_data_clean['data'][particle_index]
+            else:
+                if self.h5_path is not None and self.h5_data is None:
                     self.h5_data = h5py.File(self.h5_path, 'r', libver='latest', swmr=True)
-            img = self.h5_data['data'][particle_index]
+                img = self.h5_data['data'][particle_index]
         elif '.npy' in path and 'particle_index' in self.data.columns:
             img = np.memmap(path, dtype='float32', mode='r')[particle_index]
         elif '.tiff' in path and 'particle_index' in self.data.columns:

@@ -4,7 +4,24 @@ import os
 
 
 class Symmetry:
+    """
+    Class for handling symmetry operations in 3D reconstruction.
+
+    Loads symmetry definitions from a CSV file and generates rotation and reflection matrices
+    for use in symmetrizing 3D volumes.
+
+    Attributes:
+        symmetry (str): Name of the symmetry group.
+        rotations (pd.DataFrame): DataFrame containing symmetry operations.
+        rr (torch.Tensor): Rotation matrices for symmetry operations.
+        ll (torch.Tensor): Left transformation matrices for symmetry operations.
+    """
     def __init__(self, symmetry: str, symmetry_dir: str):
+        """
+        Args:
+            symmetry (str): Name of the symmetry group.
+            symmetry_dir (str): Directory containing the symmetry CSV file.
+        """
         self.symmetry = symmetry
         full_path = os.path.join(symmetry_dir, f"{self.symmetry}.csv")
         self.rotations = pd.read_csv(full_path)
@@ -12,6 +29,11 @@ class Symmetry:
         self.ll = None
 
     def create_rotation_matrices(self):
+        """
+        Create rotation and reflection matrices based on the loaded symmetry operations.
+
+        Populates self.rr and self.ll with the corresponding matrices.
+        """
         ls = []
         rs = []
         df = self.rotations
@@ -47,6 +69,11 @@ class Symmetry:
         self.compute_subgroup()
 
     def compute_subgroup(self):
+        """
+        Expand the set of symmetry matrices by combining existing ones until closure is reached.
+
+        Ensures that all possible products of symmetry operations are included.
+        """
         found_r = [None]
         identity = torch.eye(3, dtype=torch.double)
         while len(found_r) != 0:
@@ -74,6 +101,16 @@ class Symmetry:
             self.ll = torch.concat([self.ll] + found_l, dim=0)
 
     def align_with_z(self, axis: torch.Tensor, homogeneous: bool = True) -> torch.Tensor:
+        """
+        Create a transformation matrix that aligns the given axis with the Z axis.
+
+        Args:
+            axis (torch.Tensor): 3D vector to align with Z.
+            homogeneous (bool, optional): If True, returns a 4x4 homogeneous matrix. Defaults to True.
+
+        Returns:
+            torch.Tensor: Transformation matrix aligning axis with Z.
+        """
         if axis.numel() != 3:
             raise ValueError("Axis must be a 3D vector")
         axis = axis / torch.norm(axis)  # Normalize the axis
@@ -101,6 +138,17 @@ class Symmetry:
         return result
 
     def rotation_3d_matrix(self, angle: torch.Tensor, axis: str = 'Z', homogeneous: bool = True) -> torch.Tensor:
+        """
+        Generate a rotation matrix for a given axis and angle.
+
+        Args:
+            angle (torch.Tensor): Rotation angle in degrees.
+            axis (str, optional): Axis of rotation ('X', 'Y', or 'Z'). Defaults to 'Z'.
+            homogeneous (bool, optional): If True, returns a 4x4 homogeneous matrix. Defaults to True.
+
+        Returns:
+            torch.Tensor: Rotation matrix.
+        """
         angle = torch.deg2rad(angle)
         cosine, sine = torch.cos(angle), torch.sin(angle)
 
@@ -131,6 +179,17 @@ class Symmetry:
         return result[:3, :3] if not homogeneous else result
 
     def rotation_3d_matrix_arbitrary(self, angle: torch.Tensor, axis: torch.Tensor, homogeneous=True) -> torch.Tensor:
+        """
+        Generate a rotation matrix for an arbitrary axis and angle.
+
+        Args:
+            angle (torch.Tensor): Rotation angle in degrees.
+            axis (torch.Tensor): 3D vector representing the axis of rotation.
+            homogeneous (bool, optional): If True, returns a 4x4 homogeneous matrix. Defaults to True.
+
+        Returns:
+            torch.Tensor: Rotation matrix for the arbitrary axis.
+        """
         axis_rotation = self.align_with_z(axis, homogeneous)
         z_rotation = self.rotation_3d_matrix(angle, 'Z', homogeneous)
         result = axis_rotation.T @ z_rotation @ axis_rotation

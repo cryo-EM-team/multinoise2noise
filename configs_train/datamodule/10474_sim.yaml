@@ -1,0 +1,12 @@
+dataset_name: "10474_sim"
+
+defaults:
+  - "10474"
+
+datasets:
+  train:
+    h5_path: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}_noisy.h5"
+    h5_path_clean: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}_clean.h5"
+  val:
+    h5_path: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}_noisy.h5"
+    h5_path_clean: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}_clean.h5"
