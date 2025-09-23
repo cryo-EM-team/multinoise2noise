@@ -12,7 +12,7 @@ core:
   group: noise2noise
 
 trainer:
-  min_epochs: 50
+  min_epochs: 20
   max_epochs: 500
 
 datamodule:

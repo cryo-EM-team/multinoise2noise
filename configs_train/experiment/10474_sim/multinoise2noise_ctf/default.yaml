@@ -26,6 +26,10 @@ lightning_model:
     _target_: source.loss_functions.ctf_l2.CTF_MSELoss
     n: 1
     correct_frequencies: True
+  logging:
+    reconstruction_wait: 5
+    reconstruction_step: 5
+    sample_epochs: 5
 
 tags: ['noise2noise', 'unet', '10474', 'simulated']
 

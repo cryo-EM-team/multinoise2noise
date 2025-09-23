@@ -7,10 +7,6 @@ from torchvision.transforms import v2
 import h5py
 import tifffile as tiff
 
-# from source.utils import RankedLogger
-
-# logger = RankedLogger(__name__)
-
 
 class MultiNoise2NoiseDataset(Dataset):
 
@@ -83,7 +79,6 @@ class MultiNoise2NoiseDataset(Dataset):
             }
             results['fom'] = torch.tensor([[[row['rlnMaxValueProbDistribution']]]], dtype=torch.double) if self.do_fom_weighting else torch.ones((1,1,1), dtype=torch.double)
             results['full_dose'] = full_dose
-            #logger.info(f"input: {results['input'].shape}, target: {results['target'].shape}, full_dose: {results['full_dose'].shape}")
 
         results['file'] = row['rlnImageName']
         return results
@@ -127,7 +122,6 @@ class MultiNoise2NoiseDataset(Dataset):
                 if x_rest is not None:
                     x_rest /= (x.shape[0] - x.shape[0] // self.splits)
                 full_dose /= x.shape[0]
-
         if self.reverse:
             return x_rest, x_split, full_dose
         return x_split, x_rest, full_dose

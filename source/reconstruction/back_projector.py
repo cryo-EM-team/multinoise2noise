@@ -264,12 +264,11 @@ class BackProjector(torch.nn.Module):
         counter.index_add_(0, ires, torch.ones_like(ires, dtype=torch.double))
         counter[counter <= 0] = 1
         radavg_weight /= counter
-        if weight_modifiers is not None:
-            radavg_weight += weight_modifiers
-        radavg_weight /= 1000
         del counter
-
         radavg_weight = radavg_weight.index_select(0, ires)
+        if weight_modifiers is not None:
+            radavg_weight *= weight_modifiers.view(-1)[r2_mask]
+        radavg_weight /= 1000
         self.weight.view(-1)[r2_mask] = torch.stack((radavg_weight, f_val), dim=-1).max(dim=-1)[0]
         self.weight.view(-1)[~r2_mask] = float('inf')
 

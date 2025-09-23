@@ -164,13 +164,6 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         return self.train_loader
 
     def val_dataloader(self) -> CombinedLoader:
-        if (self.current_epoch >= self.hparams.reconstruction_wait and 
-            self.current_epoch % self.hparams.reconstruction_step == 0):
-            return CombinedLoader(self.val_loaders, mode='sequential')
-        if self.hparams.train_half == 1:
-            return CombinedLoader([DataLoader(EmptyDataset()), self.val_loaders[1]], mode='sequential')
-        elif self.hparams.train_half == 2:
-            return CombinedLoader([self.val_loaders[0], DataLoader(EmptyDataset())], mode='sequential')
         return CombinedLoader(self.val_loaders, mode='sequential')
 
     def test_dataloader(self) -> CombinedLoader:

@@ -12,8 +12,8 @@ original_reconstruction_path: ${datamodule.original_reconstruction_path}
 
 logging:
   sample_epochs: 5 # images to sample for validation epoch
-  reconstruction_wait: 5 # how many epoch to wait before starting performing reconstructions
-  reconstruction_step: 5
+  reconstruction_wait: 30 # how many epoch to wait before starting performing reconstructions
+  reconstruction_step: 10
   
 optimizer:
     _target_: torch.optim.AdamW
@@ -24,7 +24,7 @@ optimizer:
 
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
-  patience: 7
+  patience: 5
   threshold: 1e-05
   factor: 0.5
 

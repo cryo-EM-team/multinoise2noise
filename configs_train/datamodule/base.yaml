@@ -48,7 +48,7 @@ datasets:
     training: True
     average_strategy: ${datamodule.average_strategy}
     splits: ${datamodule.splits}
-    reverse: ${datamodule.splits}
+    reverse: ${datamodule.reverse}
     h5_path: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}.h5"
     transform:
       _target_: torchvision.transforms.v2.Compose
@@ -68,7 +68,7 @@ datasets:
     do_fom_weighting: False
     average_strategy: ${datamodule.average_strategy}
     splits: ${datamodule.splits}
-    reverse: ${datamodule.splits}
+    reverse: ${datamodule.reverse}
     h5_path: "${datamodule.dataset_path}/extraction/${datamodule.dataset_name}.h5"
     transform:
       _target_: torchvision.transforms.v2.Compose

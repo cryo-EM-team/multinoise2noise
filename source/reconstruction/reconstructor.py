@@ -134,8 +134,7 @@ class Reconstructor(L.LightningModule):
             calculate_fsc(results['half_1'], results['half_2']), 
             self.extractor.ctf.angpix, 
             self.hparams.low_resol_join_halves)
-        weight_modifiers, metadata = self.create_ssnr_arrays(results['fsc'])
-        del weight_modifiers
+        w_m, metadata = self.create_ssnr_arrays(results['fsc'])
         results['resolution'] = calculate_resolution(results['fsc'], self.extractor.ctf.angpix)
 
         weight_0 = self.back_projector[0].weight.clone()
@@ -143,10 +142,10 @@ class Reconstructor(L.LightningModule):
         self.back_projector[0].weight = full_weight
         self.back_projector[0].data = full_data
         self.back_projector[0].weight_precalculated = False
-        results['reconstruction'] = self.back_projector[0].reconstruct(weight_modifiers=weight_modifiers)
+        results['reconstruction'] = self.back_projector[0].reconstruct(w_m)
         self.back_projector[0].weight = weight_0
         self.back_projector[0].data = data_0
-        del weight_0, data_0, full_weight, full_data
+        del weight_0, data_0, full_weight, full_data, w_m
         self.save_reconstruction(results['reconstruction'], "reconstruction.mrc")
         metadata = {"general": {"resolution": results['resolution']}, "fsc": metadata}
         if self.hparams.postprocess:

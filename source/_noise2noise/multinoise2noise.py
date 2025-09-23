@@ -7,8 +7,9 @@ from omegaconf import DictConfig
 from torch.optim import Optimizer
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 import mrcfile
-import os, gc, psutil
+import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 from source.reconstruction.visualization import visualize_slices, visualize_projections, visualize_fsc, visualize_samples, visualize_guiner, visualize_histogram
 from source.reconstruction.postprocessing import postprocess
@@ -118,6 +119,7 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         canvas.draw()
         img = Image.frombytes("RGBA", canvas.get_width_height(), canvas.buffer_rgba())
         self.logger.log_image(key=title, images=[img])
+        plt.close()
         del canvas
         del img
         del fig
@@ -416,10 +418,10 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                     self.reconstructor.save_reconstruction(postprocess_results['sharp_map'], f"reconstruction_sharp.mrc")
                     self.reconstructor.save_reconstruction(postprocess_results['local_resolution'], f"local_resolution.mrc")
                     self.reconstructor.save_reconstruction(postprocess_results['filtered_map'], f"filtered_reconstruction.mrc")
+                del postprocess_results
 
             self._log_metrics_directly(phase, evaluation_metrics_outputs)
             self._set_eval_outputs()
-            del postprocess_results
 
     def on_validation_epoch_end(self) -> None:
         self._on_evaluation_epoch_end(phase='val')

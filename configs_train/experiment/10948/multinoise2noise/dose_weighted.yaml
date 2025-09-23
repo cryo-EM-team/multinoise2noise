@@ -35,11 +35,13 @@ lightning_model:
       size:
         - ${datamodule.new_size}
         - ${datamodule.new_size}
-
-lightning_model:
   metrics:
     _target_: torchmetrics.MetricCollection
     metrics: []
+  logging:
+    reconstruction_wait: 5
+    reconstruction_step: 5
+    sample_epochs: 5
 
 tags: ['noise2noise', 'unet', '10948', 'real']
 
