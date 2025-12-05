@@ -14,7 +14,7 @@ core:
 
 datamodule:
   splits: 2
-  batch_size: 150
+  batch_size: 40
   particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
   original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
 

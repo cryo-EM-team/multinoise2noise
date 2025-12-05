@@ -5,7 +5,7 @@ file_mode: ${datamodule.file_mode}
 extractor:
   _target_: source.reconstruction.extractor.Extractor
   new_size: ${datamodule.new_size}
-  bg_radius: ${datamodule.bg_radius}
+  bg_radius: null
   invert_contrast: ${datamodule.invert_contrast}
   ctf_mode: "normal"
   dw_mode: False

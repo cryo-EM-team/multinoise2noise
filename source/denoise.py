@@ -40,7 +40,7 @@ log = RankedLogger(__name__, rank_zero_only=True)
 
 
 @task_wrapper
-def denoise(cfg: DictConfig) -> None:
+def denoise(cfg: DictConfig) -> tuple[None, None]:
     """Denoises provided data using the model specified in the configuration.
 
     This method is wrapped in optional @task_wrapper decorator, that controls the behavior during
@@ -90,7 +90,7 @@ def denoise(cfg: DictConfig) -> None:
         return
 
     trainer.predict(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
-    return
+    return None, None
 
 
 @hydra.main(version_base="1.3", config_path="../configs_train", config_name="train.yaml")

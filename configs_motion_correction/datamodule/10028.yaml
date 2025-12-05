@@ -4,19 +4,19 @@ _recursive_: False
 batch_size: 1
 num_workers: 0
 
-dataset_name: "10025"
+dataset_name: "10028"
 dataset_path: "${paths.data_dir}/${datamodule.dataset_name}"
 micrographs_star_path: "${datamodule.dataset_path}/Gain/movies.star"
 out_dir:  "${paths.storage_dir}/motion_correction/${datamodule.dataset_name}/"
 prefix: "MotionCorr"
 
-pixel_size: 0.66
-n_frames: 38
-dose_per_frame: 1.3947
+pixel_size: 1.34
+n_frames: 16
+dose_per_frame: 1.25
 pre_exposure: 0
 voltage: 300
-do_all: True
-size: [7676, 7420]
+do_all: False
+size: [4096, 4096]
 
 dataset:
   _target_: source.datasets.motion_correction_dataset.MotionCorrectionDataset

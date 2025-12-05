@@ -6,7 +6,7 @@ num_workers: 0
 
 dataset_name: "10948"
 dataset_path: "${paths.data_dir}/${datamodule.dataset_name}"
-micrographs_star_path: "${datamodule.dataset_path}/Gain/movies_.star"
+micrographs_star_path: "${datamodule.dataset_path}/Gain/movies.star"
 out_dir:  "${paths.storage_dir}/motion_correction/${datamodule.dataset_name}/"
 prefix: "MotionCorr"
 

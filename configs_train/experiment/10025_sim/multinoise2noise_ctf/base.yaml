@@ -30,4 +30,4 @@ lightning_model:
 
 tags: ['noise2noise', 'unet', '10025', 'simulated']
 
-task_name: "multi_noise2noise_ctf"
+task_name: "noise2noise_ctf"

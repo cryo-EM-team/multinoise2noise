@@ -8,7 +8,7 @@ class Extractor(torch.nn.Module):
     """
     Class for extraction of particles from micrographs and their fouriercropping.
     """
-    def __init__(self, ctf: CTF, dose_weighter: DoseWeighter, new_size: int, bg_radius: int, invert_contrast: bool, ctf_mode: str, dw_mode: bool=False, *args, **kwargs):
+    def __init__(self, ctf: CTF, dose_weighter: DoseWeighter, new_size: int, bg_radius: int, invert_contrast: bool, ctf_mode: str, dw_mode: bool=False, do_normalisation: bool=True, std: float=None, mean: float=None, *args, **kwargs):
         """
         Initialize the Extractor module with CTF, dose weighting, and cropping parameters.
 
@@ -20,6 +20,7 @@ class Extractor(torch.nn.Module):
             invert_contrast (bool): Whether to invert contrast.
             ctf_mode (str): CTF correction mode ('none', 'premultiply', 'sign').
             dw_mode (bool, optional): Whether to apply dose weighting. Defaults to False.
+            do_normalisation (bool, optional): Whether to apply normalisation. Defaults to True.
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
@@ -31,16 +32,21 @@ class Extractor(torch.nn.Module):
         self.dose_weighter = dose_weighter
         self.crop_size = new_size // 2 + 1
         self.new_size = new_size
-        self.register_buffer("coords", 
-                             create_centered_xy1_grid(new_size, new_size).permute((2, 0, 1)), 
-                             persistent=False)
-        r2 = (self.coords[:-1] ** 2).sum(dim=0)
-        mask = r2 > bg_radius**2
-        self.mask_f = mask.flatten()
-        x_f = self.coords[0].flatten()[self.mask_f]
-        y_f = self.coords[1].flatten()[self.mask_f]
-        xy1 = torch.stack([x_f, y_f, torch.ones_like(x_f)], dim=0)
-        self.register_buffer("mat", (torch.linalg.inv(xy1 @ xy1.T) @ xy1).permute((1,0)), persistent=False)
+        self.bg_radius = bg_radius
+        self.do_normalisation = do_normalisation
+        self.std = std
+        self.mean = mean
+        if self.bg_radius is not None:
+            self.register_buffer("coords", 
+                                create_centered_xy1_grid(new_size, new_size).permute((2, 0, 1)), 
+                                persistent=False)
+            r2 = (self.coords[1:] ** 2).sum(dim=0)
+            mask = r2 > (new_size // 2 - bg_radius)**2
+            self.mask_f = mask.flatten()
+            x_f = self.coords[0].flatten()[self.mask_f]
+            y_f = self.coords[1].flatten()[self.mask_f]
+            xy1 = torch.stack([x_f, y_f, torch.ones_like(x_f)], dim=0)
+            self.register_buffer("mat", (torch.linalg.inv(xy1 @ xy1.T) @ xy1).permute((1,0)), persistent=False)
 
     def rescale_patch(self, patch: torch.Tensor, ctf_params: dict[str, object]) -> torch.Tensor:
         """
@@ -59,7 +65,11 @@ class Extractor(torch.nn.Module):
                                   dim=-2)
         c_patch = torch.fft.irfft2(f_patch_crop, norm='forward')
         
-        n_patch = self.normalise_patch(c_patch)
+        if self.do_normalisation:
+            n_patch = self.normalise_patch(c_patch)
+        else:
+            n_patch = c_patch
+
         if self.invert_contrast:
             n_patch *= -1
 
@@ -91,11 +101,18 @@ class Extractor(torch.nn.Module):
         Returns:
             torch.Tensor: Normalized patch.
         """
-        v_f = patch.flatten(start_dim=-2, end_dim=-1)[..., self.mask_f].mean(dim=1, keepdim=True) ### check if mistake, shouldn't mean have dim=2
-        plane_img = torch.einsum('bij,jm,mhw->bihw', v_f, self.mat, self.coords)
-        v_f -= plane_img.flatten(start_dim=-2, end_dim=-1)[..., self.mask_f]
-        std, mean = torch.std_mean(v_f, dim=-1, keepdim=True)
-        n_patch = (patch - plane_img - mean[..., None]) / std[..., None]
+        if self.bg_radius is not None:
+            v_f = patch.flatten(start_dim=-2, end_dim=-1)[..., self.mask_f].mean(dim=1, keepdim=True)
+            plane_img = torch.einsum('bij,jm,mhw->bihw', v_f, self.mat, self.coords)
+            v_f -= plane_img.flatten(start_dim=-2, end_dim=-1)[..., self.mask_f]
+            patch = patch - plane_img
+        else:
+            v_f = patch.flatten(start_dim=-2, end_dim=-1).mean(dim=1, keepdim=True)
+        if self.std is not None and self.mean is not None:
+            n_patch = (patch - self.mean) / self.std
+        else:
+            std, mean = torch.std_mean(v_f, dim=-1, keepdim=True)
+            n_patch = (patch - mean[..., None]) / std[..., None]
         return n_patch
 
 def create_centered_xy1_grid(dimy: int, dimx: int) -> torch.Tensor:

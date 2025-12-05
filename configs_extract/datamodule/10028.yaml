@@ -4,25 +4,25 @@ _recursive_: False
 batch_size: 8
 num_workers: 8
 
-dataset_name: "10948"
+dataset_name: "10028"
 dataset_path: "${paths.data_dir}/${datamodule.dataset_name}"
 particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_extract.star"
 out_dir:  "${datamodule.dataset_path}/extraction/"
 
-new_size: 360
-old_size: 360
-bg_radius: null
-do_normalisation: True
+new_size: 256
+old_size: 256
+bg_radius: None
+do_normalisation: False
 invert_contrast: True
 file_mode: 'h5'
-num_frames: 40
+num_frames: 16
 
 #CTF params
 cs: 2.7
 kv: 300
 q0: 0.1
-angpix: 0.813
-dose_per_frame: 1.0
+angpix: 1.34
+dose_per_frame: 1.25
 pre_exposure: 0
 voltage: 300
 

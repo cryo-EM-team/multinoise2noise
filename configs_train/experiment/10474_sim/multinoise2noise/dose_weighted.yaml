@@ -36,7 +36,7 @@ lightning_model:
         - ${datamodule.new_size}
         - ${datamodule.new_size}
   logging:
-    reconstruction_wait: 5
+    reconstruction_wait: 3000
     reconstruction_step: 5
     sample_epochs: 5
 

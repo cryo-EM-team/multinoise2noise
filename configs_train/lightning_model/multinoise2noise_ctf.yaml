@@ -4,6 +4,8 @@ model: ${model}
 
 mean: ${datamodule.mean}
 std: ${datamodule.std}
+min: ${datamodule.min}
+max: ${datamodule.max}
 
 eval_half: ${datamodule.train_half}
 
@@ -12,7 +14,7 @@ original_reconstruction_path: ${datamodule.original_reconstruction_path}
 
 logging:
   sample_epochs: 5 # images to sample for validation epoch
-  reconstruction_wait: 30 # how many epoch to wait before starting performing reconstructions
+  reconstruction_wait: 3000 # how many epoch to wait before starting performing reconstructions
   reconstruction_step: 10
   
 optimizer:
@@ -24,8 +26,8 @@ optimizer:
 
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
-  patience: 5
-  threshold: 1e-05
+  patience: 7
+  threshold: 1e-07
   factor: 0.5
 
 criterion:

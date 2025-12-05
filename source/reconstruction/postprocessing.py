@@ -459,7 +459,8 @@ def postprocess(I1: torch.Tensor,
                 mask: torch.Tensor = None, 
                 mean_map: torch.Tensor = None, 
                 randomize_fsc_at: float = 0.8, 
-                symmetry: Symmetry = None) -> dict[str, torch.Tensor]:
+                symmetry: Symmetry = None,
+                local_resolution: bool = True) -> dict[str, torch.Tensor]:
     """
     Perform postprocessing on two half-maps, including FSC calculation, sharpening, and local resolution estimation.
 
@@ -472,7 +473,7 @@ def postprocess(I1: torch.Tensor,
         mean_map (torch.Tensor, optional): Mean map for sharpening.
         randomize_fsc_at (float, optional): FSC threshold for phase randomization.
         symmetry (Symmetry, optional): Symmetry object for symmetrization.
-
+        local_resolution (bool, optional): Whether to calculate local resolution.
     Returns:
         dict: Dictionary containing sharpened map, FSC curves, local resolution map, and filtered map.
     """
@@ -504,5 +505,6 @@ def postprocess(I1: torch.Tensor,
     results = sharpen_map(mean_map, fsc_true, angpix, autob_lowres)
     results["fsc_postprocess"] = fsc_dict
     results["sharp_resolution"] = calculate_resolution(fsc_true, angpix)
-    results.update(locres(I1, I2, I1_r, I2_r, results["b_factor"], angpix, randomize_at, mask, mean_map, symmetry=symmetry))
+    if local_resolution:
+        results.update(locres(I1, I2, I1_r, I2_r, results["b_factor"], angpix, randomize_at, mask, mean_map, symmetry=symmetry))
     return results

@@ -26,7 +26,7 @@ lightning_model:
     _target_: torchmetrics.MetricCollection
     metrics: []
   logging:
-    reconstruction_wait: 5
+    reconstruction_wait: 3000
     reconstruction_step: 5
     sample_epochs: 5
 

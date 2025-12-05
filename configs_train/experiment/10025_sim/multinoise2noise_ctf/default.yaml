@@ -27,7 +27,7 @@ lightning_model:
     n: 1
     correct_frequencies: True
   logging:
-    reconstruction_wait: 5
+    reconstruction_wait: 3000
     reconstruction_step: 5
     sample_epochs: 5
 

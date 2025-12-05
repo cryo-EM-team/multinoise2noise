@@ -114,18 +114,18 @@ def low_resolution_join_halves(fsc: torch.Tensor, angpix: float, threshold: floa
     """
     return torch.where(((fsc.shape[0] - 1) * 2 * angpix / torch.arange(fsc.shape[0])) < threshold, fsc, 1)
 
-def calculate_resolution(fsc: torch.Tensor, angpix: float) -> float:
+def calculate_resolution(fsc: torch.Tensor, angpix: float, threshold: float = 0.143) -> float:
     """
-    Calculate the resolution at which FSC drops below 0.143.
+    Calculate the resolution at which FSC drops below threshold (default 0.143).
 
     Args:
         fsc (torch.Tensor): FSC curve.
         angpix (float): Pixel size in Angstroms.
-
+        threshold (float): Resolution threshold.
     Returns:
         float: Estimated resolution in Angstroms.
     """
-    vec = torch.nonzero(fsc < 0.143, as_tuple=False)
+    vec = torch.nonzero(fsc < threshold, as_tuple=False)
     if len(vec) > 0:
         i = vec[0].item() - 1
     else:

@@ -213,7 +213,7 @@ def visualize_samples(samples: list[dict[str, torch.Tensor]], num_samples: int) 
         Figure: Matplotlib figure with sample images.
     """
     num_samples = min(num_samples, len(samples['input']))
-    fig, ax = plt.subplots(num_samples, len(samples.keys()), figsize=(4 * num_samples, 3 * len(samples.keys())))
+    fig, ax = plt.subplots(max(2, num_samples), len(samples.keys()), figsize=(4 * max(2, num_samples), 3 * len(samples.keys())))
 
     for i in range(num_samples):
         for key_idx, key in enumerate(samples.keys()):

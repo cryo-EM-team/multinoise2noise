@@ -149,12 +149,13 @@ class Reconstructor(L.LightningModule):
         self.save_reconstruction(results['reconstruction'], "reconstruction.mrc")
         metadata = {"general": {"resolution": results['resolution']}, "fsc": metadata}
         if self.hparams.postprocess:
-            postprocess_results = postprocess(results['half_1'], results['half_2'], self.extractor.ctf.angpix, self.hparams.autob_lowres, mask=self.mask, symmetry=self.back_projector[0].symmetry)
+            postprocess_results = postprocess(results['half_1'], results['half_2'], self.extractor.ctf.angpix, self.hparams.autob_lowres, mask=self.mask, symmetry=self.back_projector[0].symmetry, local_resolution=self.hparams.local_resolution)
             metadata["general"]["b_factor"] = postprocess_results['b_factor']
             metadata["general"]["sharpened_resolution"] = postprocess_results['sharp_resolution']
 
             self.save_reconstruction(postprocess_results['sharp_map'], "reconstruction_sharp.mrc")
-            self.save_reconstruction(postprocess_results['local_resolution'], "local_resolution.mrc")
+            if self.hparams.local_resolution:
+                self.save_reconstruction(postprocess_results['local_resolution'], "local_resolution.mrc")
             self.save_reconstruction(postprocess_results['filtered_map'], "filtered_reconstruction.mrc")
             results['postprocess_results'] = postprocess_results
 

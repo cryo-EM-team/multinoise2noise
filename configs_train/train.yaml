@@ -43,6 +43,7 @@ task_name: "train"
 # overwrite from command line with `python train.py tags="[first_tag, second_tag]"`
 tags: ["dev"]
 
+subset: 1
 # set False to skip model training
 train: True
 

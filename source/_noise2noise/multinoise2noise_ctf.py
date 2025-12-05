@@ -1,5 +1,4 @@
 import torch
-import hydra
 
 from source._noise2noise.multinoise2noise import MultiNoise2NoiseLightningModel
 
@@ -48,19 +47,37 @@ class MultiNoise2NoiseCTFLightningModel(MultiNoise2NoiseLightningModel):
         *args: object, 
         **kwargs: object
     ) -> dict[str, list[torch.Tensor]]:
-        ctf_weights = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().abs()[:, None, ...]
-        if self.hparams.ctf_premultiply:
-            batch['input'] = self.correct_ctf(batch['input'], ctf_weights)
-            batch['full_dose'] = self.correct_ctf(batch['full_dose'], ctf_weights)
-        
-        loss, batch['denoised'] = self._shared_step(x1=batch['input'], x2=batch['target'], ctf=ctf_weights)
-        _, batch['denoised_full_dose'] = self._shared_step(x1=batch['full_dose'], x2=batch['target'][:, 0:1, ...], ctf=ctf_weights)
-        batch['denoised_mean'] = batch['denoised'].mean(dim=1, keepdim=True)
+        if self.hparams.eval_half != dataloader_idx+1 and self.logging_condition:
+            ctf_weights = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().abs()[:, None, ...]
+            if self.hparams.ctf_premultiply:
+                batch['input'] = self.correct_ctf(batch['input'], ctf_weights)
+                batch['full_dose'] = self.correct_ctf(batch['full_dose'], ctf_weights)
+            
+            loss, batch['denoised'] = self._shared_step(x1=batch['input'], x2=batch['target'], ctf=ctf_weights)
+            _, batch['denoised_full_dose'] = self._shared_step(x1=batch['full_dose'], x2=batch['target'][:, 0:1, ...], ctf=ctf_weights)
+            batch['denoised_mean'] = batch['denoised'].mean(dim=1, keepdim=True)
 
-        self.backproject_denoised(batch, bckp_idx=dataloader_idx, phase=phase)
-        if self.hparams.eval_half != dataloader_idx+1:
             self.compute_metrics(batch, loss, phase=phase)
             self.store_images(batch)
+
+        if self.reconstruction_condition:
+            if not (self.hparams.eval_half != dataloader_idx+1 and self.logging_condition):
+                ctf_weights = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().abs()[:, None, ...]
+                if self.hparams.ctf_premultiply:
+                    batch['input'] = self.correct_ctf(batch['input'], ctf_weights)
+                    batch['full_dose'] = self.correct_ctf(batch['full_dose'], ctf_weights)
+                if self.hparams.reconstruction_mode == 'denoised_full_dose':
+                    _, batch['denoised_full_dose'] = self._shared_step(x1=batch['full_dose'], x2=batch['target'][:, 0:1, ...], ctf=ctf_weights)
+                elif self.hparams.reconstruction_mode == 'denoised_mean':
+                    loss, batch['denoised'] = self._shared_step(x1=batch['input'], x2=batch['target'], ctf=ctf_weights)
+                    batch['denoised_mean'] = batch['denoised'].mean(dim=1, keepdim=True)
+
+            self.reconstructor.forward(image=batch[self.hparams.reconstruction_mode][:, 0].double(),
+                                       shifts=batch['shifts'], 
+                                       angles_matrix=batch['angles_matrix'],
+                                       ctf_params=batch['ctf_params'], 
+                                       fom=batch['fom'].double(), 
+                                       bckp_idx=dataloader_idx)
 
     @staticmethod
     def correct_ctf(self, data: torch.Tensor, ctf: torch.Tensor) -> torch.Tensor:

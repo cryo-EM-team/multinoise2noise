@@ -8,6 +8,8 @@ from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 
+from source._extraction.mean_std_module import MeanStdModule
+
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
 # the setup_root above is equivalent to:
@@ -55,6 +57,9 @@ def extract(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     log.info(f"Instantiating datamodule <{cfg.datamodule._target_}>")
     datamodule: LightningDataModule = hydra.utils.instantiate(cfg.datamodule)
 
+    log.info(f"Instantiating mean std module")
+    mean_std_module: MeanStdModule = MeanStdModule()
+
     log.info(f"Instantiating model <{cfg.lightning_model._target_}>")
     model: LightningModule = hydra.utils.instantiate(cfg.lightning_model, _recursive_=True)
 
@@ -81,6 +86,14 @@ def extract(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         log_hyperparameters(object_dict)
 
     model.exchange_data(datamodule=datamodule)
+
+    log.info("Startingcounting mean and std!")
+    trainer.predict(model=mean_std_module, datamodule=datamodule, ckpt_path=None)
+    trainer.predict(model=mean_std_module, datamodule=datamodule, ckpt_path=None)
+
+    log.info(f"Mean: {mean_std_module.mean}, Std: {mean_std_module.std}, Min: {mean_std_module.min}, Max: {mean_std_module.max}")
+    model.mean = mean_std_module.mean
+    model.std = mean_std_module.std
 
     log.info("Starting extraction!")
     trainer.predict(model=model, datamodule=datamodule, ckpt_path=None)

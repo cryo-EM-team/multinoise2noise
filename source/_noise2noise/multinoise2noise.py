@@ -10,6 +10,7 @@ import mrcfile
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from source.reconstruction.visualization import visualize_slices, visualize_projections, visualize_fsc, visualize_samples, visualize_guiner, visualize_histogram
 from source.reconstruction.postprocessing import postprocess
@@ -294,7 +295,7 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                      dataloader_idx: int, 
                     *args: object, 
                     **kwargs: object):
-        denoised = self.model(batch['full_dose'][:, 0])[:, 0]
+        denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input']))).mean(dim=1)[:, 0]
 
         if self.reconstructor.hparams.ctf_mode == "abs":
             ctf = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().sign()[:, 0]
@@ -390,11 +391,14 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                                                       self.reconstructor.hparams.autob_lowres, 
                                                       mask=self.reconstructor.mask,
                                                       mean_map=mean_map,
-                                                      symmetry=self.reconstructor.back_projector[0].symmetry)
+                                                      symmetry=self.reconstructor.back_projector[0].symmetry,
+                                                      local_resolution=self.reconstructor.hparams.local_resolution)
                     del mean_map, eval_half
 
 
                 evaluation_metrics_outputs[f"{self.hparams.reconstruction_mode}/resolution"] = postprocess_results['sharp_resolution']
+                evaluation_metrics_outputs[f"{self.hparams.reconstruction_mode}/resolution_05"] = calculate_resolution(postprocess_results['fsc_postprocess']['fsc true'], self.reconstructor.extractor.ctf.angpix, 0.5)
+
                 evaluation_metrics_outputs[f"{self.hparams.reconstruction_mode}/b_factor"] = postprocess_results['b_factor']
                 evaluation_metrics_outputs[f"{self.hparams.reconstruction_mode}/intercept"] = postprocess_results['intercept']
                 self.reconstructor.reset_data()
@@ -402,8 +406,9 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                 if self.logging_condition:
                     self.log_plot(visualize_slices(postprocess_results['sharp_map']), f"{phase}/{self.hparams.reconstruction_mode}/slices_postprocess")
                     self.log_plot(visualize_projections(postprocess_results['sharp_map']), f"{phase}/{self.hparams.reconstruction_mode}/projections_postprocess")
-                    self.log_plot(visualize_slices(postprocess_results['filtered_map']), f"{phase}/{self.hparams.reconstruction_mode}/slices_filtered")
-                    self.log_plot(visualize_projections(postprocess_results['filtered_map']), f"{phase}/{self.hparams.reconstruction_mode}/projections_filtered")
+                    if self.reconstructor.hparams.local_resolution:
+                        self.log_plot(visualize_slices(postprocess_results['filtered_map']), f"{phase}/{self.hparams.reconstruction_mode}/slices_filtered")
+                        self.log_plot(visualize_projections(postprocess_results['filtered_map']), f"{phase}/{self.hparams.reconstruction_mode}/projections_filtered")
 
                     self.log_plot(visualize_fsc(
                         postprocess_results['fsc_postprocess'], 
@@ -411,13 +416,20 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                         self.reconstructor.extractor.ctf.angpix), f"{phase}/{self.hparams.reconstruction_mode}/FourierShellCorrelation")
                     
                     self.log_plot(visualize_guiner(postprocess_results['guiner'], postprocess_results['b_factor']), f"{phase}/{self.hparams.reconstruction_mode}/guiner_plot")
-                    self.log_plot(visualize_histogram(postprocess_results['resolution_histogram'], 
-                                                    self.reconstructor.extractor.ctf.angpix, 
-                                                    self.original_reconstruction.shape[0]), f"{phase}/{self.hparams.reconstruction_mode}/resolution_histogram")
+                    if self.reconstructor.hparams.local_resolution:
+                        self.log_plot(visualize_histogram(postprocess_results['resolution_histogram'], 
+                                                          self.reconstructor.extractor.ctf.angpix, 
+                                                          self.original_reconstruction.shape[0]), 
+                                                          f"{phase}/{self.hparams.reconstruction_mode}/resolution_histogram")
                     
                     self.reconstructor.save_reconstruction(postprocess_results['sharp_map'], f"reconstruction_sharp.mrc")
-                    self.reconstructor.save_reconstruction(postprocess_results['local_resolution'], f"local_resolution.mrc")
-                    self.reconstructor.save_reconstruction(postprocess_results['filtered_map'], f"filtered_reconstruction.mrc")
+                    if self.reconstructor.hparams.local_resolution:
+                        self.reconstructor.save_reconstruction(postprocess_results['local_resolution'], f"local_resolution.mrc")
+                        self.reconstructor.save_reconstruction(postprocess_results['filtered_map'], f"filtered_reconstruction.mrc")
+                    fsc_df = pd.DataFrame(postprocess_results['fsc_postprocess'])
+                    if self.reconstructor.hparams.local_resolution:
+                        fsc_df['histogram']=postprocess_results['resolution_histogram'].hist.tolist()
+                    fsc_df.to_csv(os.path.join(self.reconstructor.hparams.output_dir, f"fsc.csv"), index=False)
                 del postprocess_results
 
             self._log_metrics_directly(phase, evaluation_metrics_outputs)
@@ -435,7 +447,7 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         """
         return self.model(x.to(self.device))
 
-def normalize_for_metrics(tensor: torch.Tensor) -> torch.Tensor:
+def normalize_for_metrics(tensor: torch.Tensor, min_val: float = None, max_val: float = None) -> torch.Tensor:
     """
     Normalizes a tensor's values to the range [0, 1].
 
@@ -445,7 +457,10 @@ def normalize_for_metrics(tensor: torch.Tensor) -> torch.Tensor:
     Returns:
     torch.Tensor: Normalized tensor with values in [0, 1].
     """
-    min_val = torch.min(tensor)
+    if min_val is None:
+        min_val = torch.min(tensor)
+    if max_val is None:
+        max_val = torch.max(tensor)
     max_val = torch.max(tensor)
     normalized_tensor = (tensor - min_val) / (max_val - min_val)
     return normalized_tensor
