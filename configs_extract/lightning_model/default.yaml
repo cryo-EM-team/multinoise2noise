@@ -7,7 +7,7 @@ extractor:
   new_size: ${datamodule.new_size}
   bg_radius: null
   invert_contrast: ${datamodule.invert_contrast}
-  ctf_mode: "normal"
+  ctf_mode: 'none'
   dw_mode: False
   ctf:
     _target_: source.reconstruction.ctf.CTF

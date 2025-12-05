@@ -1,13 +1,7 @@
 from typing import Any
 import torch
 import lightning as pl
-import mrcfile
-import os
-import h5py
-import numpy as np
-import tifffile
-
-from source.reconstruction.extractor import Extractor
+import math
 
 
 class MeanStdModule(pl.LightningModule):
@@ -53,10 +47,14 @@ class MeanStdModule(pl.LightningModule):
         self.forward(batch['images'])
 
     def on_predict_epoch_end(self) -> None:
+        if self.std is None and self.mean is not None:
+            self.std = (math.sqrt(self._std / self._count)).item()
         if self.mean is None:
             self.mean = (self._mean / self._count).item()
-        self.std = (torch.sqrt(self._std / self._count)).item()
-        self.min = self._min
+        if self.min is None:
+            self.min = self._min
+        if self.max is None:
+            self.max = self._max
         self.max = self._max
 
         self._mean = 0
