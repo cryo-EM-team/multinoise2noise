@@ -48,9 +48,9 @@ class MeanStdModule(pl.LightningModule):
 
     def on_predict_epoch_end(self) -> None:
         if self.std is None and self.mean is not None:
-            self.std = (math.sqrt(self._std / self._count)).item()
+            self.std = (math.sqrt(self._std / self._count))
         if self.mean is None:
-            self.mean = (self._mean / self._count).item()
+            self.mean = (self._mean / self._count)
         if self.min is None:
             self.min = self._min
         if self.max is None:
