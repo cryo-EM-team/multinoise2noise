@@ -55,7 +55,6 @@ class MeanStdModule(pl.LightningModule):
             self.min = self._min
         if self.max is None:
             self.max = self._max
-        self.max = self._max
 
         self._mean = 0
         self._std = 0
