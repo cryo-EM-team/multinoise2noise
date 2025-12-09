@@ -292,10 +292,14 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
     def predict_step(self, 
                      batch: dict[str, torch.Tensor], 
                      batch_idx: int, 
-                     dataloader_idx: int, 
+                     #dataloader_idx: int, 
                     *args: object, 
                     **kwargs: object):
-        denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input']))).mean(dim=1)[:, 0]
+        if self.hparams.reconstruction_mode == 'denoised_mean':
+            denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input']))).mean(dim=1)[:, 0]
+        elif self.hparams.reconstruction_mode == 'denoised_full_dose':
+            # denoised = batch['full_dose'][:, 0, 0]
+            denoised = self.model(batch['full_dose'][:, 0])[:, 0]
 
         if self.reconstructor.hparams.ctf_mode == "abs":
             ctf = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().sign()[:, 0]
@@ -322,28 +326,45 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         tensor_np = tensor2d.cpu().numpy().astype(np.float32)
         # If file does not exist, create a new one with a single slice
         if not os.path.exists(mrc_path):
-            with mrcfile.new(mrc_path, overwrite=True) as mrc:
-                mrc.set_data(np.zeros((index + 1, *tensor_np.shape), dtype=np.float32))
+            with mrcfile.new_mmap(mrc_path, shape=(index + 1, *tensor_np.shape),overwrite=True) as mrc:
+                #mrc.set_data(np.zeros((index + 1, *tensor_np.shape), dtype=np.float32))
                 mrc.data[index] = tensor_np
+                mrc.header.mx = tensor_np.shape[-1]
+                mrc.header.my = tensor_np.shape[-2]
+                mrc.header.mz = index + 1
+                mrc.voxel_size = self.reconstructor.extractor.ctf.angpix
                 mrc.update_header_stats()
             return
 
-        with mrcfile.open(mrc_path, mode='r+') as mrc:
-            data = mrc.data
-            # Resize if index is out of bounds
-            if index >= data.shape[0]:
-                new_shape = (index + 1, data.shape[1], data.shape[2])
-                new_data = np.zeros(new_shape, dtype=np.float32)
-                new_data[:data.shape[0]] = data
-                mrc.set_data(new_data)
-                data = mrc.data
-            data[index] = tensor_np
-
-            mrc.voxel_size = self.reconstructor.extractor.ctf.angpix
-            mrc.header.mx = data.shape[2]
-            mrc.header.my = data.shape[1]
-            mrc.header.mz = data.shape[0]
-            mrc.update_header_stats()
+        # Check if resize is needed before opening
+        with mrcfile.open(mrc_path, mode='r', header_only=True) as mrc_check:
+            needs_resize = index >= mrc_check.header.mz
+        
+        # If resize needed, recreate file with memory mapping preserved
+        if needs_resize:
+            with mrcfile.mmap(mrc_path, mode='r') as mrc_data:
+                old_shape = mrc_data.data.shape
+                old_data = mrc_data.data.copy()
+            
+            new_shape = (index + 1, old_shape[-2], old_shape[-1])
+            with mrcfile.new_mmap(mrc_path, shape=new_shape, overwrite=True) as mrc:
+                # Copy old data back
+                mrc.data[:old_shape[0]] = old_data
+                mrc.data[index] = tensor_np
+                mrc.voxel_size = self.reconstructor.extractor.ctf.angpix
+                mrc.header.mx = mrc.data.shape[2]
+                mrc.header.my = mrc.data.shape[1]
+                mrc.header.mz = mrc.data.shape[0]
+                mrc.update_header_stats()
+        else:
+            # Normal case: just update the slice with memory mapping intact
+            with mrcfile.mmap(mrc_path, mode='r+') as mrc:
+                mrc.data[index] = tensor_np
+                # mrc.voxel_size = self.reconstructor.extractor.ctf.angpix
+                # mrc.header.mx = mrc.data.shape[2]
+                # mrc.header.my = mrc.data.shape[1]
+                # mrc.header.mz = mrc.data.shape[0]
+                # mrc.update_header_stats()
 
     def _update_output_path(self) -> None:
         if self.hparams.reconstruction_mode not in self.reconstructor.hparams.output_dir:

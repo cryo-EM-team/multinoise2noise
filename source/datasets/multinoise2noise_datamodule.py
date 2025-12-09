@@ -81,6 +81,8 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         self.particles['rlnImageName'] = (self.particles.groupby('rlnMicrographName').cumcount() + 1).astype(str).str.zfill(6) + \
             '@' + self.particles['rlnMicrographName'].apply(lambda x: x.split('/')[-1].split('.')[0] + '.mrcs')
 
+        self.particles = self.particles.iloc[::-1].reset_index(drop=True)
+
         if self.hparams.train_half == 1:
             self.dataset_train = hydra.utils.call(
                 self.hparams.datasets.train,
@@ -170,10 +172,25 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         return CombinedLoader(self.val_loaders, mode='sequential')
 
     def predict_dataloader(self) -> CombinedLoader:
+        dataset = hydra.utils.call(
+            self.hparams.datasets.val,
+            data=self.particles,
+            _recursive_=True,
+        )
+
+        predict_loader = DataLoader(
+            dataset=dataset,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            shuffle=False, 
+            persistent_workers=True,
+            pin_memory=True,
+        )
+
         out_star = self.star.copy()
         out_star['particles'] = self.particles
         starfile.write(out_star, os.path.join(os.path.dirname(self.hparams.particles_star_path), 'denoised.star'))
-        return CombinedLoader(self.val_loaders, mode='sequential')
+        return predict_loader #CombinedLoader([predict_loader], mode='sequential')
 
 
 class EmptyDataset(torch.utils.data.Dataset):
