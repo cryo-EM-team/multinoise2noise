@@ -92,8 +92,8 @@ def extract(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     trainer.predict(model=mean_std_module, datamodule=datamodule, ckpt_path=None)
 
     log.info(f"Mean: {mean_std_module.mean}, Std: {mean_std_module.std}, Min: {mean_std_module.min}, Max: {mean_std_module.max}")
-    model.mean = mean_std_module.mean
-    model.std = mean_std_module.std
+    model.extractor.mean = mean_std_module.mean
+    model.extractor.std = mean_std_module.std
 
     log.info("Starting extraction!")
     trainer.predict(model=model, datamodule=datamodule, ckpt_path=None)
