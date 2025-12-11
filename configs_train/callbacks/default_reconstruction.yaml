@@ -15,7 +15,7 @@ early_stopping:
   strict: False
 
 model_checkpoint:
-  dirpath: ${paths.output_dir}/checkpoints
+  dirpath: ${paths.output_dir}/checkpoints/${datamodule.dataset_name}
   filename: "epoch_{epoch:03d}"
   monitor: "val/loss"
   mode: "min"
