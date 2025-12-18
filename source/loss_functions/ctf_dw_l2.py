@@ -21,6 +21,7 @@ class CTF_DW_MSELoss(CTF_MSELoss):
                  dose_weighter: DoseWeighter, 
                  n: int = 1, 
                  correct_frequencies: bool = True, 
+                 regularization: float = 0.,
                  **kwargs):
         """
         Initialize the CTF_DW_MSELoss module.
@@ -38,7 +39,7 @@ class CTF_DW_MSELoss(CTF_MSELoss):
                              self.dose_weighter.weight.abs().sum(dim=-4, keepdim=True), 
                              persistent=False)
         self.loss_div = self.loss_div * self.frames_weight_sum
-
+        self.regularization = regularization
         
     def forward(self, preds: torch.Tensor, target: torch.Tensor, ctf: torch.Tensor) -> torch.Tensor:
         """
@@ -70,4 +71,8 @@ class CTF_DW_MSELoss(CTF_MSELoss):
         if self.correct_frequencies:
             loss = loss / self.loss_div
         loss = loss.mean()
+        if self.regularization > 0.:
+            for i in range(f_preds.shape[-4]):
+                for j in range(i+1, f_preds.shape[-4]):
+                    loss += (torch.nn.functional.mse_loss(f_preds[..., i, :, :, :].real, f_preds[..., j, :, :, :].real, reduction='mean') + torch.nn.functional.mse_loss(f_preds[..., i, :, :, :].imag, f_preds[..., j, :, :, :].imag, reduction='mean')) * self.regularization / (f_preds.shape[-4] * (f_preds.shape[-4] - 1) * 2)
         return loss

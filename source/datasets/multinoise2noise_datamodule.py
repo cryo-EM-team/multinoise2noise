@@ -50,7 +50,10 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         if 'split' not in self.star['particles'].columns or self.hparams.recalculate_splits:
             self._create_splits()
 
+        # Instantiate dose_weighter once to share the same instance across all datasets
+        self.dose_weighter = hydra.utils.instantiate(self.hparams.dose_weighter)
         self.current_epoch = 0
+        self.dose_weights = None
     
     def _create_splits(self):
         """Creates the train/val split movie-wise
@@ -83,10 +86,35 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
 
         self.particles = self.particles.iloc[::-1].reset_index(drop=True)
 
+        if self.hparams.weight_doses:
+            dose_weights = self.dose_weighter.create_weights()
+            # dose_weights = (dose_weights.sum(0, keepdim=True) - dose_weights) / (dose_weights.shape[0] - 1)
+            full_dose = dose_weights.sum(dim=0, keepdim=True)
+            if self.hparams.datasets.train.splits == 1:
+                x_split = full_dose
+                x_rest = None
+            else:
+                x_split = dose_weights.view(-1, self.hparams.datasets.train.splits, *dose_weights.shape[1:]).sum(dim=0)
+                x_rest = full_dose - x_split
+
+        
+            if self.hparams.datasets.train.average_strategy == 'mean':
+                x_split /= (dose_weights.shape[0] // self.hparams.datasets.train.splits)
+                if x_rest is not None:
+                    x_rest /= (dose_weights.shape[0] - dose_weights.shape[0] // self.hparams.datasets.train.splits)
+                full_dose /= dose_weights.shape[0]
+
+            if self.hparams.datasets.train.reverse:
+                x_tmp = x_split.clone()
+                x_split = x_rest
+                x_rest = x_tmp
+            self.dose_weights = torch.stack([full_dose / x_split, full_dose / x_rest], dim=1).float() if x_rest is not None else torch.stack([full_dose / x_split], dim=1).float()
+        
         if self.hparams.train_half == 1:
             self.dataset_train = hydra.utils.call(
                 self.hparams.datasets.train,
                 data=self.particles[(self.particles.split == 'train') & (self.particles['rlnRandomSubset']==1)],
+                dose_weights=self.dose_weights,
                 _recursive_=True,
             )
             self.train_loader = CombinedLoader([DataLoader(
@@ -101,6 +129,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
             self.dataset_train = hydra.utils.call(
                 self.hparams.datasets.train,
                 data=self.particles[(self.particles.split == 'train') & (self.particles['rlnRandomSubset']==2)],
+                dose_weights=self.dose_weights,
                 _recursive_=True,
             )
             self.train_loader = CombinedLoader([DataLoader(
@@ -116,6 +145,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
                 hydra.utils.call(
                     self.hparams.datasets.train,
                     data=self.particles[(self.particles.split == 'train') & (self.particles['rlnRandomSubset']==idx)],
+                    dose_weights=self.dose_weights,
                     _recursive_=True,
                 ) for idx in range(1,3)]
             self.train_loader = CombinedLoader([DataLoader(
@@ -137,6 +167,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
             hydra.utils.call(
                 self.hparams.datasets.val,
                 data=self.particles[self.particles['rlnRandomSubset']==idx],
+                dose_weights=self.dose_weights,
                 _recursive_=True,
             ) for idx in range(1,3)]
 
@@ -175,6 +206,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
         dataset = hydra.utils.call(
             self.hparams.datasets.val,
             data=self.particles,
+            dose_weights=self.dose_weights,
             _recursive_=True,
         )
 

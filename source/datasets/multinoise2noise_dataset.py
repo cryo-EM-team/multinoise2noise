@@ -16,6 +16,7 @@ class MultiNoise2NoiseDataset(Dataset):
         average_strategy: str,
         splits: int,
         reverse: bool,
+        dose_weights: torch.Tensor = None,
         transform: v2.Compose = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32)]),
         do_fom_weighting: bool = False,
         training: bool = False,
@@ -26,6 +27,7 @@ class MultiNoise2NoiseDataset(Dataset):
         self.average_strategy = average_strategy
         self.splits = splits
         self.reverse = reverse
+        self.dose_weights = dose_weights
         self.transform = transform
         self.do_fom_weighting = do_fom_weighting
         self.training = training
@@ -53,6 +55,10 @@ class MultiNoise2NoiseDataset(Dataset):
             results['input'] = results['input'][:-1]
 
         results['input'], results['target'], full_dose = self._average_micrograph(results['input'][:, None, ...], split=split)
+
+        if self.dose_weights is not None:
+            results['input'], results['target'] = self._scale_dose_weighting(results['input'], results['target'])
+
         if results['target'] is None and 'clean_path' in self.data.columns:
             results['target'] = results['clean'].repeat(results['input'].shape[0], 1, 1, 1)
 
@@ -126,6 +132,14 @@ class MultiNoise2NoiseDataset(Dataset):
             return x_rest, x_split, full_dose
         return x_split, x_rest, full_dose
     
+    def _scale_dose_weighting(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        x_f = torch.fft.rfft2(x, norm='forward')
+        x_f = x_f * self.dose_weights[:, 0:1]
+
+        # y_f = torch.fft.rfft2(y, norm='forward')
+        # y_f = y_f * self.dose_weights[:, 1:2]
+        return torch.fft.irfft2(x_f, norm='forward'), y #torch.fft.irfft2(y_f, norm='forward')
+
     def __del__(self):
         if self.h5_data is not None:
             self.h5_data.close()

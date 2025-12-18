@@ -36,9 +36,21 @@ dose_per_frame: ???
 pre_exposure: 0
 create_projections: False
 original_reconstruction_path: ???
+weight_doses: True
 
 reconstruction_wait: ${lightning_model.logging.reconstruction_wait}
 reconstruction_step: ${lightning_model.logging.reconstruction_step}
+
+dose_weighter:
+  _target_: source.reconstruction.dose_weighter.DoseWeighter
+  n_frames: ${datamodule.max_splits}
+  dose_per_frame: ${datamodule.dose_per_frame}
+  pre_exposure: ${datamodule.pre_exposure}
+  voltage: ${datamodule.kv}
+  pixel_size: ${datamodule.angpix}
+  size:
+    - ${datamodule.new_size}
+    - ${datamodule.new_size}
 
 # datasets
 datasets:
