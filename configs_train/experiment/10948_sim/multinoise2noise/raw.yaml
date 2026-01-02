@@ -16,7 +16,7 @@ datamodule:
   splits: 2
   batch_size: 40
   particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
-  original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
+  original_reconstruction_path: "${datamodule.dataset_path}/half_1_reconstruction.mrc"
 
 tags: ['subset', 'raw', '10948', 'simulated']
 

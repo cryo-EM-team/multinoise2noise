@@ -20,7 +20,7 @@ datamodule:
   batch_size: 8
   num_workers: 16
   particles_star_path: "${datamodule.dataset_path}/${datamodule.dataset_name}_subset.star"
-  original_reconstruction_path: "${datamodule.dataset_path}/half_2_reconstruction.mrc"
+  original_reconstruction_path: "${datamodule.dataset_path}/half_1_reconstruction.mrc"
 
 tags: ['noise2noise', 'unet', '10025', 'simulated']
 
