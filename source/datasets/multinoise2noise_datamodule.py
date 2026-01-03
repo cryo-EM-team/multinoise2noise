@@ -108,7 +108,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
                 x_tmp = x_split.clone()
                 x_split = x_rest
                 x_rest = x_tmp
-            self.dose_weights = torch.stack([full_dose / x_split, full_dose / x_rest], dim=1).float() if x_rest is not None else torch.stack([full_dose / x_split], dim=1).float()
+            self.dose_weights = 1 / x_split[:, None, ...].float(), 1 / x_rest[:, None, ...].float(), 1 / full_dose[:, None, ...].float() if x_rest is not None else 1 / x_split[:, None, ...].float(), 1 / full_dose[:, None, ...].float()
         
         if self.hparams.train_half == 1:
             self.dataset_train = hydra.utils.call(

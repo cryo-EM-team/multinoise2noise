@@ -16,7 +16,7 @@ class MultiNoise2NoiseDataset(Dataset):
         average_strategy: str,
         splits: int,
         reverse: bool,
-        dose_weights: torch.Tensor = None,
+        dose_weights: tuple[torch.Tensor, torch.Tensor, torch.Tensor] = None,
         transform: v2.Compose = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32)]),
         do_fom_weighting: bool = False,
         training: bool = False,
@@ -57,7 +57,7 @@ class MultiNoise2NoiseDataset(Dataset):
         results['input'], results['target'], full_dose = self._average_micrograph(results['input'][:, None, ...], split=split)
 
         if self.dose_weights is not None:
-            results['input'], results['target'] = self._scale_dose_weighting(results['input'], results['target'])
+            results['input'], results['target'], full_dose = self._scale_dose_weighting(results['input'], results['target'], full_dose)
 
         if results['target'] is None and 'clean_path' in self.data.columns:
             results['target'] = results['clean'].repeat(results['input'].shape[0], 1, 1, 1)
@@ -132,13 +132,15 @@ class MultiNoise2NoiseDataset(Dataset):
             return x_rest, x_split, full_dose
         return x_split, x_rest, full_dose
     
-    def _scale_dose_weighting(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def _scale_dose_weighting(self, x: torch.Tensor, y: torch.Tensor, full_dose: torch.Tensor) -> torch.Tensor:
         x_f = torch.fft.rfft2(x, norm='forward')
-        x_f = x_f * self.dose_weights[:, 0:1]
+        x_f = x_f * self.dose_weights[0]
 
         # y_f = torch.fft.rfft2(y, norm='forward')
-        # y_f = y_f * self.dose_weights[:, 1:2]
-        return torch.fft.irfft2(x_f, norm='forward'), y #torch.fft.irfft2(y_f, norm='forward')
+        # y_f = y_f * self.dose_weights[1]
+        full_dose_f = torch.fft.rfft2(full_dose, norm='forward')
+        full_dose_f = full_dose_f * self.dose_weights[-1]
+        return torch.fft.irfft2(x_f, norm='forward'), y, torch.fft.irfft2(full_dose_f, norm='forward') #torch.fft.irfft2(y_f, norm='forward')
 
     def __del__(self):
         if self.h5_data is not None:
