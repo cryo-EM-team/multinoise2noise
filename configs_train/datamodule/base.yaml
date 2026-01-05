@@ -36,7 +36,7 @@ dose_per_frame: ???
 pre_exposure: 0
 create_projections: False
 original_reconstruction_path: ???
-weight_doses: True
+weight_doses: False
 
 reconstruction_wait: ${lightning_model.logging.reconstruction_wait}
 reconstruction_step: ${lightning_model.logging.reconstruction_step}

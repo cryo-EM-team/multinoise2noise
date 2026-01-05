@@ -43,7 +43,7 @@ class MultiNoise2NoiseCTFLightningModel(MultiNoise2NoiseLightningModel):
         self, 
         batch: dict[str, torch.Tensor], 
         phase: str, 
-        dataloader_idx: int,
+        dataloader_idx: int = 0,
         *args: object, 
         **kwargs: object
     ) -> dict[str, list[torch.Tensor]]:

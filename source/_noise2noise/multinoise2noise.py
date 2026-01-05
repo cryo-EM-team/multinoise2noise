@@ -247,7 +247,7 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         self, 
         batch: dict[str, torch.Tensor], 
         phase: str, 
-        dataloader_idx: int,
+        dataloader_idx: int = 0,
         *args: object, 
         **kwargs: object
     ) -> None:
@@ -277,14 +277,14 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
     def validation_step(self, 
                         batch: dict[str, torch.Tensor], 
                         batch_idx: int,
-                        dataloader_idx: int,
+                        dataloader_idx: int = 0,
                         *args: object, 
                         **kwargs: object):
         self._evaluation_step(batch=batch, phase='val', dataloader_idx=dataloader_idx, args=args, kwargs=kwargs)
 
     def test_step(self, 
                   batch: dict[str, torch.Tensor], 
-                  batch_idx: int, dataloader_idx: int, 
+                  batch_idx: int, dataloader_idx: int = 0, 
                   *args: object, 
                   **kwargs: object):
         self._evaluation_step(batch=batch, phase='test', dataloader_idx=dataloader_idx, args=args, kwargs=kwargs)
@@ -292,10 +292,12 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
     def predict_step(self, 
                      batch: dict[str, torch.Tensor], 
                      batch_idx: int, 
-                     #dataloader_idx: int, 
+                     dataloader_idx: int = 0, 
                     *args: object, 
                     **kwargs: object):
-        if self.hparams.reconstruction_mode == 'denoised_mean':
+        if hasattr(self.criterion, 'dose_weighter'):
+            denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input'])))
+        elif self.hparams.reconstruction_mode == 'denoised_mean':
             denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input']))).mean(dim=1)[:, 0]
         elif self.hparams.reconstruction_mode == 'denoised_full_dose':
             # denoised = batch['full_dose'][:, 0, 0]
@@ -303,7 +305,16 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
 
         if self.reconstructor.hparams.ctf_mode == "abs":
             ctf = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().sign()[:, 0]
-            f_denoised = torch.fft.rfft2(denoised, norm='forward') * ctf
+            f_denoised = torch.fft.rfft2(denoised, norm='forward') 
+            if hasattr(self.criterion, 'dose_weighter'):
+                f_denoised *= self.criterion.dose_weighter.weight
+                f_denoised = (f_denoised).mean(dim=1)[:, 0]
+            f_denoised = f_denoised * ctf
+            denoised = torch.fft.irfft2(f_denoised, norm='forward')
+        elif hasattr(self.criterion, 'dose_weighter'):
+            f_denoised = torch.fft.rfft2(denoised, norm='forward') 
+            f_denoised *= self.criterion.dose_weighter.weight
+            f_denoised = (f_denoised).mean(dim=1)[:, 0]
             denoised = torch.fft.irfft2(f_denoised, norm='forward')
 
         for file, img in zip(batch['file'], denoised):
@@ -377,10 +388,11 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         with torch.no_grad():
             if self.logging_condition:
                 self._process_eval_outputs()
-                self.log_plot(visualize_samples(self.evaluation_step_outputs, self.hparams.logging.sample_epochs), f"{phase}/sample")
-                for key in list(self.evaluation_step_outputs.keys()):
-                    del self.evaluation_step_outputs[key]
-                self.evaluation_step_outputs = {}
+                if self.evaluation_step_outputs:
+                    self.log_plot(visualize_samples(self.evaluation_step_outputs, self.hparams.logging.sample_epochs), f"{phase}/sample")
+                    for key in list(self.evaluation_step_outputs.keys()):
+                        del self.evaluation_step_outputs[key]
+                self._set_eval_outputs()
             
             evaluation_metrics_outputs = {}
             if self.reconstruction_condition:
@@ -452,8 +464,8 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                         fsc_df['histogram']=postprocess_results['resolution_histogram'].hist.tolist()
                     fsc_df.to_csv(os.path.join(self.reconstructor.hparams.output_dir, f"fsc.csv"), index=False)
                 del postprocess_results
-
-            self._log_metrics_directly(phase, evaluation_metrics_outputs)
+            if self.batch_counter > 0:
+                self._log_metrics_directly(phase, evaluation_metrics_outputs)
             self._set_eval_outputs()
 
     def on_validation_epoch_end(self) -> None:
