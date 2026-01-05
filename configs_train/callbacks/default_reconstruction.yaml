@@ -9,7 +9,11 @@ defaults:
 
 early_stopping:
   monitor: "val/loss" # quantity to be monitored, must be specified !!!
+<<<<<<< HEAD
   patience: 7 # number of checks with no improvement after which training will be stopped
+=======
+  patience: 9 # number of checks with no improvement after which training will be stopped
+>>>>>>> 5d392be (fixed batch size)
   verbose: True # verbosity mode
   mode: "min"
   strict: False
