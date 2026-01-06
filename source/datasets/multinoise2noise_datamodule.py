@@ -127,19 +127,19 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
             )])
 
             self.dataset_val = hydra.utils.call(
-                self.hparams.datasets.train,
+                self.hparams.datasets.val,
                 data=self.particles[self.particles['rlnRandomSubset']==2],
                 dose_weights=self.dose_weights,
                 _recursive_=True,
             )
-            self.val_loader = CombinedLoader([DataLoader(
+            self.val_loader = [DataLoader(
                 dataset=self.dataset_val,
                 batch_size=self.hparams.batch_size,
                 num_workers=self.hparams.num_workers,
                 shuffle=True, 
                 persistent_workers=True,
                 pin_memory=True,
-            )])
+            )]
         elif self.hparams.train_half == 2:
             self.dataset_train = hydra.utils.call(
                 self.hparams.datasets.train,
@@ -157,19 +157,19 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
             )])
 
             self.dataset_val = hydra.utils.call(
-                self.hparams.datasets.train,
+                self.hparams.datasets.val,
                 data=self.particles[self.particles['rlnRandomSubset']==1],
                 dose_weights=self.dose_weights,
                 _recursive_=True,
             )
-            self.val_loader = CombinedLoader([DataLoader(
+            self.val_loader = [DataLoader(
                 dataset=self.dataset_val,
                 batch_size=self.hparams.batch_size,
                 num_workers=self.hparams.num_workers,
                 shuffle=True, 
                 persistent_workers=True,
                 pin_memory=True,
-            )])
+            )]
         else:
             self.dataset_train = [
                 hydra.utils.call(
@@ -189,19 +189,19 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
 
             self.dataset_val = [
                 hydra.utils.call(
-                    self.hparams.datasets.train,
+                    self.hparams.datasets.val,
                     data=self.particles[self.particles['rlnRandomSubset']==idx],
                     dose_weights=self.dose_weights,
                     _recursive_=True,
                 ) for idx in range(1,3)]
-            self.val_loader = CombinedLoader([DataLoader(
+            self.val_loader = [DataLoader(
                 dataset=dataset,
                 batch_size=self.hparams.batch_size // 2,
                 num_workers=self.hparams.num_workers // 2,
                 shuffle=True,
                 persistent_workers=True,
                 pin_memory=True,
-            ) for dataset in self.dataset_val])
+            ) for dataset in self.dataset_val]
         
         # self.dataset_train = hydra.utils.call(
         #     self.hparams.datasets.train,

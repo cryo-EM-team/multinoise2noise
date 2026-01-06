@@ -43,11 +43,11 @@ class MultiNoise2NoiseCTFLightningModel(MultiNoise2NoiseLightningModel):
         self, 
         batch: dict[str, torch.Tensor], 
         phase: str, 
-        dataloader_idx: int = 0,
+        dataloader_idx: int = -1,
         *args: object, 
         **kwargs: object
     ) -> dict[str, list[torch.Tensor]]:
-        if self.hparams.eval_half != dataloader_idx+1 and self.logging_condition:
+        if ((self.hparams.eval_half != dataloader_idx+1) or (dataloader_idx == -1)) and self.logging_condition:
             ctf_weights = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().abs()[:, None, ...]
             if self.hparams.ctf_premultiply:
                 batch['input'] = self.correct_ctf(batch['input'], ctf_weights)

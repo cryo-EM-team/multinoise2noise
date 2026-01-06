@@ -44,6 +44,8 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         # validation step outputs and test step outputs for logging
         self.last_shape = None
         self._set_eval_outputs()
+        self.cummulative_loss = 0
+        self.batch_counter = 0
         self.reconstruction_condition = False
         self.logging_condition = None
         self.original_reconstruction = torch.tensor(mrcfile.open(self.hparams.original_reconstruction_path, permissive=True).data, dtype=torch.double)
@@ -64,8 +66,6 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
             "denoised_full_dose": [],
             "clean" : []
         }
-        self.cummulative_loss = 0
-        self.batch_counter = 0
 
     def _process_eval_outputs(self) -> None:
         for k in [k for k, v in self.evaluation_step_outputs.items() if not v]:
@@ -90,7 +90,10 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                         metric(normalize_for_metrics(batch[f'denoised_{key}']), clean)
 
     def _log_metrics_directly(self, phase: str, evaluation_metrics_outputs: dict[str, torch.Tensor]):
-        evaluation_metrics_outputs.update({f"loss": self.cummulative_loss / self.batch_counter})
+        if self.batch_counter > 0:
+            evaluation_metrics_outputs.update({f"loss": self.cummulative_loss / self.batch_counter})
+        else:
+            evaluation_metrics_outputs.update({f"loss": float('inf')})
         for key, metric_set in self.metrics_set.items():
             evaluation_metrics_outputs.update(self._add_prefix_to_metrics(f'{key}_', metric_set.compute()))
             metric_set.reset()
@@ -247,11 +250,11 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         self, 
         batch: dict[str, torch.Tensor], 
         phase: str, 
-        dataloader_idx: int = 0,
+        dataloader_idx: int = -1,
         *args: object, 
         **kwargs: object
     ) -> None:
-        if self.hparams.eval_half != dataloader_idx+1 and self.logging_condition:
+        if ((self.hparams.eval_half != dataloader_idx+1) or (dataloader_idx == -1)) and self.logging_condition:
             loss, batch['denoised'] = self._shared_step(x1=batch['input'], x2=batch['target'])
             _, batch['denoised_full_dose'] = self._shared_step(x1=batch['full_dose'], x2=batch['target'][:, 0:1, ...])
             batch['denoised_mean'] = batch['denoised'].mean(dim=1, keepdim=True)
@@ -277,14 +280,14 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
     def validation_step(self, 
                         batch: dict[str, torch.Tensor], 
                         batch_idx: int,
-                        dataloader_idx: int = 0,
+                        dataloader_idx: int = -1,
                         *args: object, 
                         **kwargs: object):
         self._evaluation_step(batch=batch, phase='val', dataloader_idx=dataloader_idx, args=args, kwargs=kwargs)
 
     def test_step(self, 
                   batch: dict[str, torch.Tensor], 
-                  batch_idx: int, dataloader_idx: int = 0, 
+                  batch_idx: int, dataloader_idx: int = -1, 
                   *args: object, 
                   **kwargs: object):
         self._evaluation_step(batch=batch, phase='test', dataloader_idx=dataloader_idx, args=args, kwargs=kwargs)
@@ -292,10 +295,10 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
     def predict_step(self, 
                      batch: dict[str, torch.Tensor], 
                      batch_idx: int, 
-                     dataloader_idx: int = 0, 
+                     dataloader_idx: int = -1, 
                     *args: object, 
                     **kwargs: object):
-        if hasattr(self.criterion, 'dose_weighter'):
+        if hasattr(self.criterion, 'dose_weighter') and (self.hparams.reconstruction_mode != 'denoised_full_dose'):
             denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input'])))
         elif self.hparams.reconstruction_mode == 'denoised_mean':
             denoised = self.restore_tensor(self.model(self.flatten_tensor(batch['input']))).mean(dim=1)[:, 0]
@@ -306,12 +309,12 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
         if self.reconstructor.hparams.ctf_mode == "abs":
             ctf = self.reconstructor.extractor.ctf.get_fftw_image(**batch['ctf_params']).detach().float().sign()[:, 0]
             f_denoised = torch.fft.rfft2(denoised, norm='forward') 
-            if hasattr(self.criterion, 'dose_weighter'):
+            if hasattr(self.criterion, 'dose_weighter') and (self.hparams.reconstruction_mode != 'denoised_full_dose'):
                 f_denoised *= self.criterion.dose_weighter.weight
                 f_denoised = (f_denoised).mean(dim=1)[:, 0]
             f_denoised = f_denoised * ctf
             denoised = torch.fft.irfft2(f_denoised, norm='forward')
-        elif hasattr(self.criterion, 'dose_weighter'):
+        elif hasattr(self.criterion, 'dose_weighter') and (self.hparams.reconstruction_mode != 'denoised_full_dose'):
             f_denoised = torch.fft.rfft2(denoised, norm='forward') 
             f_denoised *= self.criterion.dose_weighter.weight
             f_denoised = (f_denoised).mean(dim=1)[:, 0]
@@ -464,9 +467,10 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                         fsc_df['histogram']=postprocess_results['resolution_histogram'].hist.tolist()
                     fsc_df.to_csv(os.path.join(self.reconstructor.hparams.output_dir, f"fsc.csv"), index=False)
                 del postprocess_results
-            if self.batch_counter > 0:
-                self._log_metrics_directly(phase, evaluation_metrics_outputs)
+            self._log_metrics_directly(phase, evaluation_metrics_outputs)
             self._set_eval_outputs()
+            self.cummulative_loss = 0
+            self.batch_counter = 0
 
     def on_validation_epoch_end(self) -> None:
         self._on_evaluation_epoch_end(phase='val')
