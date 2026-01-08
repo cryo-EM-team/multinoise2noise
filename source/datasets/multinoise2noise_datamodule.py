@@ -136,7 +136,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
                 dataset=self.dataset_val,
                 batch_size=self.hparams.batch_size,
                 num_workers=self.hparams.num_workers,
-                shuffle=True, 
+                shuffle=False, 
                 persistent_workers=True,
                 pin_memory=True,
             )]
@@ -166,7 +166,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
                 dataset=self.dataset_val,
                 batch_size=self.hparams.batch_size,
                 num_workers=self.hparams.num_workers,
-                shuffle=True, 
+                shuffle=False, 
                 persistent_workers=True,
                 pin_memory=True,
             )]
@@ -198,7 +198,7 @@ class MultiNoise2NoiseDatamodule(pl.LightningDataModule):
                 dataset=dataset,
                 batch_size=self.hparams.batch_size // 2,
                 num_workers=self.hparams.num_workers // 2,
-                shuffle=True,
+                shuffle=False,
                 persistent_workers=True,
                 pin_memory=True,
             ) for dataset in self.dataset_val]

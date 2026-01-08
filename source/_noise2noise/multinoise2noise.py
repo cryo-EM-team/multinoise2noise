@@ -413,13 +413,31 @@ class MultiNoise2NoiseLightningModel(pl.LightningModule):
                 if 'postprocess_results' in reconstruction_results.keys():
                     postprocess_results = reconstruction_results['postprocess_results']
                 else:
+                    sharp_map_1 = postprocess(reconstruction_results['half_1'], 
+                                              reconstruction_results['half_2'], 
+                                              self.reconstructor.extractor.ctf.angpix,
+                                              self.reconstructor.hparams.autob_lowres, 
+                                              mask=self.reconstructor.mask,
+                                              mean_map=reconstruction_results['half_1'],
+                                              symmetry=self.reconstructor.back_projector[0].symmetry,
+                                              local_resolution=False)['sharp_map']
+                    sharp_map_2 = postprocess(reconstruction_results['half_2'], 
+                                              reconstruction_results['half_1'], 
+                                              self.reconstructor.extractor.ctf.angpix,
+                                              self.reconstructor.hparams.autob_lowres, 
+                                              mask=self.reconstructor.mask,
+                                              mean_map=reconstruction_results['half_2'],
+                                              symmetry=self.reconstructor.back_projector[0].symmetry,
+                                              local_resolution=False)['sharp_map']
+
                     if self.hparams.eval_half == 1:
-                        eval_half = reconstruction_results['half_1']
+                        eval_half = sharp_map_1
                     elif self.hparams.eval_half == 2:
-                        eval_half = reconstruction_results['half_2']
+                        eval_half = sharp_map_2
                     else:
-                        eval_half = reconstruction_results['reconstruction']
-                    mean_map = (reconstruction_results['half_1'] + reconstruction_results['half_2']) / 2
+                        eval_half = (sharp_map_1 + sharp_map_2) / 2
+                    mean_map = (sharp_map_1 + sharp_map_2) / 2
+
                     del reconstruction_results
                     postprocess_results = postprocess(eval_half, 
                                                       self.original_reconstruction, 

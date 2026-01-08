@@ -190,7 +190,7 @@ def plot_with_weighted_dashes(x: torch.Tensor, y: torch.Tensor, w: torch.Tensor,
                 linestyle=true_style if weights[i] == 1 else false_style, 
                 label=label_)
 
-def sharpen_map(density_map: torch.Tensor, fsc: torch.Tensor, angpix: float, autob_lowres: float) -> dict[str, torch.Tensor]:
+def sharpen_map(density_map: torch.Tensor, fsc: torch.Tensor, angpix: float, autob_lowres: float, b_factor: float = None) -> dict[str, torch.Tensor]:
     """
     Sharpen a density map using FSC weighting and Guinier plot fitting.
 
@@ -209,7 +209,8 @@ def sharpen_map(density_map: torch.Tensor, fsc: torch.Tensor, angpix: float, aut
     guiner["Weighted"] = make_guinier_plot(f_density_map, autob_lowres, angpix)
     
     slope, intercept = fit_straight_line_lstsq(*guiner["Weighted"])
-    b_factor = slope * 4
+    if b_factor is None:
+        b_factor = slope * 4
     apply_bfactor(f_density_map, b_factor, angpix)
     guiner["Sharpened"] = make_guinier_plot(f_density_map, autob_lowres, angpix)
     
@@ -460,7 +461,8 @@ def postprocess(I1: torch.Tensor,
                 mean_map: torch.Tensor = None, 
                 randomize_fsc_at: float = 0.8, 
                 symmetry: Symmetry = None,
-                local_resolution: bool = True) -> dict[str, torch.Tensor]:
+                local_resolution: bool = True,
+                b_factor: float = None) -> dict[str, torch.Tensor]:
     """
     Perform postprocessing on two half-maps, including FSC calculation, sharpening, and local resolution estimation.
 
@@ -474,6 +476,7 @@ def postprocess(I1: torch.Tensor,
         randomize_fsc_at (float, optional): FSC threshold for phase randomization.
         symmetry (Symmetry, optional): Symmetry object for symmetrization.
         local_resolution (bool, optional): Whether to calculate local resolution.
+        b_factor (float, optional): Global B-factor.
     Returns:
         dict: Dictionary containing sharpened map, FSC curves, local resolution map, and filtered map.
     """
@@ -502,7 +505,7 @@ def postprocess(I1: torch.Tensor,
     
     if mean_map is None:
         mean_map = (I1 + I2) / 2
-    results = sharpen_map(mean_map, fsc_true, angpix, autob_lowres)
+    results = sharpen_map(mean_map, fsc_true, angpix, autob_lowres, b_factor=b_factor)
     results["fsc_postprocess"] = fsc_dict
     results["sharp_resolution"] = calculate_resolution(fsc_true, angpix)
     if local_resolution:
